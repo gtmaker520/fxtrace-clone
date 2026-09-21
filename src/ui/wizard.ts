@@ -8,7 +8,7 @@ import { fitEqBands, computeMatchPct } from '../engine/fitting';
 import { analyzeFreqProfile, classifyDistortion, computeThdFromPeaks, decomposeHarmonics, computeDynamicRatio, solveDriveFromLevels } from '../engine/analysis';
 import type { ClipTopology } from '../engine/analysis';
 import { selectDriveEffect, selectAmpModel, selectCabinet } from '../engine/matching';
-import { getAudioContext, detectInputSignal, captureBaseline, captureSweepResponse, captureThd, captureThdMultiLevel, captureDynamicLevels } from '../audio/io';
+import { getAudioContext, detectInputSignal, captureBaseline, captureSweepResponse, captureThd, captureThdMultiLevel, captureDynamicLevels, listInputDevices } from '../audio/io';
 import { captureWHSweeps } from '../audio/wh-capture';
 import { fitStaticNonlinearity } from '../engine/wh-nonlinear';
 import { estimateWHLinearStages } from '../engine/wh-linear';
@@ -83,6 +83,7 @@ function renderWizard(): void {
           <div class="clone-connect-text" id="cwConnectText">请将吉他 → 被测单块 → 声卡输入 连接好<br><small>先<b>不接</b>被测设备（直通）做基线校准</small></div>
         </div>
         <div class="clone-detect-row">
+          <select id="cwDeviceSel" style="flex:1; padding:6px; background:#161a2e; color:#ccc; border:1px solid #2a2f4a; border-radius:6px; font-size:13px"></select>
           <button class="btn clone-detect-btn" id="cwDetectBtn">检测信号并校准基线</button>
         </div>
       </div>
@@ -137,12 +138,33 @@ function renderWizard(): void {
   overlay.querySelector('#cwCloseBtn')!.addEventListener('click', closeWizard);
 
   // 信号检测 + 基线校准（直通状态扫一遍）
+  // 输入设备下拉框：填充（权限授予后 label 才可见，检测后重刷一次）
+  const deviceSel = overlay.querySelector('#cwDeviceSel') as HTMLSelectElement;
+  let selectedDeviceId = '';
+  async function refreshDeviceList(): Promise<void> {
+    const devices = await listInputDevices();
+    if (devices.length === 0) return;
+    const prev = selectedDeviceId;
+    deviceSel.innerHTML = '';
+    for (const d of devices) {
+      const opt = document.createElement('option');
+      opt.value = d.deviceId;
+      opt.textContent = d.label || `输入设备 ${d.deviceId.slice(0, 8)}…`;
+      deviceSel.appendChild(opt);
+    }
+    // 保持之前的选择（或默认第一项）
+    selectedDeviceId = prev && devices.some(d => d.deviceId === prev) ? prev : devices[0].deviceId;
+    deviceSel.value = selectedDeviceId;
+  }
+  refreshDeviceList();
+  deviceSel.addEventListener('change', () => { selectedDeviceId = deviceSel.value; });
+
   overlay.querySelector('#cwDetectBtn')!.addEventListener('click', async function (this: HTMLButtonElement) {
     const btn = this as HTMLButtonElement;
     const connectText = overlay.querySelector('#cwConnectText') as HTMLElement;
     btn.disabled = true;
-    btn.textContent = '检测中...';
-    const result = await detectInputSignal();
+    btn.textContent = '检测中（最多 3s，请弹奏）...';
+    const result = await detectInputSignal(selectedDeviceId || undefined);
     const icon = overlay.querySelector('#cwSignalIcon') as HTMLElement;
     if (result.ok) {
       icon.textContent = '●';
@@ -153,6 +175,8 @@ function renderWizard(): void {
         const ctx = getAudioContext();
         if (!ctx) throw new Error('音频上下文不可用');
         _baseline = await captureBaseline(ctx);
+        // 权限已授予，重刷设备列表让 label 显示出来
+        await refreshDeviceList();
         connectText.innerHTML = '<span style="color:#4caf50">● 校准完成</span><br>现在接上被测单块，选择分析模式';
         (overlay.querySelector('#cwStep2') as HTMLElement).style.display = '';
         (overlay.querySelector('#cwStep3') as HTMLElement).style.display = '';

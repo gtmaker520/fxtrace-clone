@@ -53,26 +53,52 @@ export function closeAudioContext(): void {
   _ctx = null;
 }
 
-/** 信号检测：打开输入 200ms，测 RMS，判断是否有信号进入声卡 */
-export async function detectInputSignal(): Promise<{ ok: boolean; error?: string }> {
+/**
+ * 信号检测：打开输入设备，轮询采样最多 timeoutMs 毫秒取 RMS 峰值。
+ * 修复原实现三个问题：
+ * 1) AudioContext 可能 suspended（自动播放策略）→ 显式 resume
+ * 2) 固定等 200ms 可能在流尚未送出数据时采样 → 轮询直到有信号或超时
+ * 3) 无设备选择 → 可传 deviceId（demo 提供下拉框），避免默认选到内置麦克风
+ * 阈值从 0.005 降到 0.002（拾音电平低的声卡/接口也能过）。
+ */
+export async function detectInputSignal(deviceId?: string, timeoutMs = 3000): Promise<{ ok: boolean; error?: string; rms?: number }> {
   const ctx = getAudioContext();
   if (!ctx) return { ok: false, error: '音频上下文不可用' };
+  // 自动播放策略：检测必须在用户手势调用链里，但仍显式 resume 保险
+  if (ctx.state === 'suspended') {
+    try { await ctx.resume(); } catch { /* ignore */ }
+  }
   let stream: MediaStream | null = null;
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: AUDIO_CONSTRAINTS });
+    stream = await navigator.mediaDevices.getUserMedia({
+      audio: { ...AUDIO_CONSTRAINTS, ...(deviceId ? { deviceId: { exact: deviceId } } : {}) },
+    });
     const src = ctx.createMediaStreamSource(stream);
     const anl = ctx.createAnalyser();
     anl.fftSize = 2048;
     src.connect(anl);
     const buf = new Uint8Array(anl.frequencyBinCount);
-    await new Promise(r => setTimeout(r, 200));
-    anl.getByteTimeDomainData(buf);
-    let rms = 0;
-    for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; rms += v * v; }
-    rms = Math.sqrt(rms / buf.length);
+
+    // 轮询：每 100ms 测一次 RMS，取峰值；有信号立即通过，超时才报失败
+    const start = Date.now();
+    let peakRms = 0;
+    while (Date.now() - start < timeoutMs) {
+      anl.getByteTimeDomainData(buf);
+      let rms = 0;
+      for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; rms += v * v; }
+      rms = Math.sqrt(rms / buf.length);
+      if (rms > peakRms) peakRms = rms;
+      if (peakRms > 0.002) break; // 有信号，提前结束
+      await new Promise(r => setTimeout(r, 100));
+    }
     src.disconnect();
     anl.disconnect();
-    return rms > 0.005 ? { ok: true } : { ok: false, error: '未检测到输入信号，请检查吉他和声卡连接' };
+    if (peakRms > 0.002) return { ok: true, rms: peakRms };
+    return {
+      ok: false,
+      rms: peakRms,
+      error: `未检测到输入信号（${(timeoutMs / 1000).toFixed(0)}s 内峰值 RMS ${peakRms.toFixed(4)} < 0.002）——请确认：① 声卡输入设备选择正确 ② 吉他音量/拾音器已开 ③ 弹奏或接入信号后再检测`,
+    };
   } catch (e) {
     const msg = e instanceof DOMException && e.name === 'NotAllowedError'
       ? '麦克风权限被拒绝，请在浏览器设置中允许访问麦克风'
@@ -82,6 +108,16 @@ export async function detectInputSignal(): Promise<{ ok: boolean; error?: string
     return { ok: false, error: msg };
   } finally {
     stream?.getTracks().forEach(t => t.stop());
+  }
+}
+
+/** 列出音频输入设备（需要先获得过一次权限才有 label） */
+export async function listInputDevices(): Promise<MediaDeviceInfo[]> {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    return devices.filter(d => d.kind === 'audioinput');
+  } catch {
+    return [];
   }
 }
 
