@@ -7,7 +7,7 @@
 import { openCloneWizard, setOnApply, showToast } from '../src/ui/wizard';
 import { analyzeAudioSelection } from '../src/io/file-clone';
 import { drawResponseChart, buildFitTableHtml, drawWaveform } from '../src/ui/charts';
-import { cloneResultToTone, downloadTone } from '../src/io/tone-file';
+import { cloneResultToTone, downloadTone, parseToneFile } from '../src/io/tone-file';
 import { MiniFxChain, applyTone } from '../src/index';
 import { getAudioContext } from '../src/audio/io';
 import type { CloneMode, CloneResult } from '../src/engine/types';
@@ -22,6 +22,28 @@ setOnApply((result) => {
   showToast(`已应用：${result.matchedDrive?.name ?? '无单块'} + ${result.matchedAmp?.name ?? '无箱头'} + ${result.matchedCab?.name ?? '无箱体'}，现在可以弹奏试听`);
 });
 document.getElementById('openWizardBtn')!.addEventListener('click', openCloneWizard);
+
+// ── 导入音色文件 → 一键恢复链路 ──
+const toneFileInput = document.getElementById('toneFileInput') as HTMLInputElement;
+document.getElementById('importToneBtn')!.addEventListener('click', () => toneFileInput.click());
+toneFileInput.addEventListener('change', async () => {
+  const file = toneFileInput.files?.[0];
+  if (!file) return;
+  try {
+    const { tone, legacy } = parseToneFile(await file.text(), file.name.replace(/\.json$/i, ''));
+    const ctx = getAudioContext();
+    if (!ctx) { showToast('音频上下文不可用'); return; }
+    if (!demoChain) demoChain = new MiniFxChain(ctx);
+    applyTone(demoChain, tone as unknown as CloneResult);
+    const info = document.getElementById('importToneInfo')!;
+    info.textContent = `✓ ${tone.name}（匹配度 ${tone.matchPct}%）${legacy ? ' · 旧格式 v1，无原始频响' : ''}`;
+    showToast(`音色「${tone.name}」已应用到链路${legacy ? '（旧格式 v1，可重新克隆升级到 v2）' : ''}`);
+  } catch (e) {
+    showToast('导入失败: ' + (e instanceof Error ? e.message : String(e)));
+  } finally {
+    toneFileInput.value = '';
+  }
+});
 
 // ── 路径 B：音频文件克隆 ──
 const dropZone = document.getElementById('dropZone')!;

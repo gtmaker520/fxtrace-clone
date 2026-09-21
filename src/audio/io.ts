@@ -3,8 +3,29 @@
 // （提取自原 clone-pedal.ts 的声卡 I/O 路径）
 // 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
 
-import { SWEEP_FFT, extractValidBins, calibrateResponse, renderSweepBuffer } from '../engine/measurement';
+import { SWEEP_DURATION, SWEEP_FFT, SWEEP_GAIN, FREQ_MIN, FREQ_MAX, extractValidBins, calibrateResponse } from '../engine/measurement';
 import type { SweepPeaks } from '../engine/measurement';
+
+/**
+ * 离线渲染 20Hz→20kHz 指数扫频缓冲（供回放经被测设备采集）。
+ * WebAudio 依赖位于 audio 层，engine 只保留参数与纯逻辑。
+ */
+export async function renderSweepBuffer(ctx: BaseAudioContext): Promise<AudioBuffer> {
+  const sr = ctx.sampleRate;
+  const bufLen = Math.floor(sr * SWEEP_DURATION);
+  const offline = new OfflineAudioContext(1, bufLen + SWEEP_FFT, sr);
+  const osc = offline.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(FREQ_MIN, 0);
+  osc.frequency.exponentialRampToValueAtTime(FREQ_MAX, SWEEP_DURATION);
+  const gain = offline.createGain();
+  gain.gain.setValueAtTime(SWEEP_GAIN, 0);
+  osc.connect(gain);
+  gain.connect(offline.destination);
+  osc.start(0);
+  osc.stop(SWEEP_DURATION);
+  return offline.startRendering();
+}
 
 const AUDIO_CONSTRAINTS: MediaTrackConstraints = {
   echoCancellation: false,

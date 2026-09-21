@@ -2,7 +2,7 @@
 // tests/fitting.test.ts — 合成数据单测：给已知 EQ 造频响，验证拟合恢复
 import { describe, it, expect } from 'vitest';
 import { fitEqBands, computeMatchPct, predictResponse } from '../src/engine/fitting';
-import { analyzeFreqProfile, classifyDistortion } from '../src/engine/analysis';
+import { classifyDistortion } from '../src/engine/analysis';
 import { selectDriveEffect, selectAmpModel, selectCabinet } from '../src/engine/matching';
 import { calibrateResponse } from '../src/engine/measurement';
 import type { FreqProfile } from '../src/engine/types';

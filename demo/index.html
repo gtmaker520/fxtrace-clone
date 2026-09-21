@@ -79,6 +79,9 @@
       <p class="hint">吉他 →（不接被测设备先校准基线）→ 声卡。校准后接上被测单块，走完 测量→拟合→选型→导出 全流程。</p>
       <div class="row" style="margin-top:10px">
         <button class="btn btn-primary" id="openWizardBtn">打开克隆向导</button>
+        <button class="btn" id="importToneBtn">导入音色文件</button>
+        <input type="file" id="toneFileInput" accept=".json" style="display:none">
+        <span class="hint" id="importToneInfo"></span>
       </div>
     </div>
 

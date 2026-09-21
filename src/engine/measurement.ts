@@ -9,27 +9,6 @@ export const SWEEP_GAIN = 0.3;
 export const FREQ_MIN = 20;
 export const FREQ_MAX = 20000;
 
-/**
- * 离线渲染 20Hz→20kHz 指数扫频缓冲（供回放经被测设备采集）。
- * 需要 DOM 环境的 OfflineAudioContext。
- */
-export async function renderSweepBuffer(ctx: BaseAudioContext): Promise<AudioBuffer> {
-  const sr = ctx.sampleRate;
-  const bufLen = Math.floor(sr * SWEEP_DURATION);
-  const offline = new OfflineAudioContext(1, bufLen + SWEEP_FFT, sr);
-  const osc = offline.createOscillator();
-  osc.type = 'sine';
-  osc.frequency.setValueAtTime(FREQ_MIN, 0);
-  osc.frequency.exponentialRampToValueAtTime(FREQ_MAX, SWEEP_DURATION);
-  const gain = offline.createGain();
-  gain.gain.setValueAtTime(SWEEP_GAIN, 0);
-  osc.connect(gain);
-  gain.connect(offline.destination);
-  osc.start(0);
-  osc.stop(SWEEP_DURATION);
-  return offline.startRendering();
-}
-
 export interface SweepPeaks {
   freqs: Float32Array;
   peak: Float32Array;
