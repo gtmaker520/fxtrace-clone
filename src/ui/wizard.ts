@@ -1,0 +1,310 @@
+// SPDX-License-Identifier: Apache-2.0
+// ui/wizard.ts — 向导式克隆弹窗（设备克隆路径）
+// （提取自原 clone-pedal.ts 的 renderCloneModal，去 Electron，存储改为导出文件）
+// 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
+
+import type { CloneMode, CloneResult, SavedCloneTone } from '../engine/types';
+import { fitEqBands, computeMatchPct } from '../engine/fitting';
+import { analyzeFreqProfile, classifyDistortion, computeThdFromPeaks, computeDynamicRatio } from '../engine/analysis';
+import { selectDriveEffect, selectAmpModel, selectCabinet } from '../engine/matching';
+import { getAudioContext, detectInputSignal, captureBaseline, captureSweepResponse, captureThd, captureDynamicLevels } from '../audio/io';
+import { drawResponseChart, buildFitTableHtml } from './charts';
+import { cloneResultToTone, downloadTone } from '../io/tone-file';
+import type { SweepPeaks } from '../engine/measurement';
+
+let _modalEl: HTMLElement | null = null;
+let _onCloneSaved: ((tone: SavedCloneTone) => void) | null = null;
+let _onApply: ((result: CloneResult) => void) | null = null;
+let _result: CloneResult | null = null;
+
+let _baseline: SweepPeaks | null = null;
+let _analyzing = false;
+let _recordMediaRecorder: MediaRecorder | null = null;
+let _recordStream: MediaStream | null = null;
+let _recordTimer: ReturnType<typeof setInterval> | null = null;
+
+export function setOnCloneSaved(cb: (tone: SavedCloneTone) => void): void { _onCloneSaved = cb; }
+export function setOnApply(cb: (result: CloneResult) => void): void { _onApply = cb; }
+
+export function showToast(msg: string, duration = 2000): void {
+  const el = document.createElement('div');
+  el.textContent = msg;
+  Object.assign(el.style, {
+    position: 'fixed', bottom: '24px', left: '50%', transform: 'translateX(-50%)',
+    padding: '10px 24px', borderRadius: '6px', background: '#333', color: '#fff',
+    fontSize: '14px', zIndex: '10000', opacity: '0', transition: 'opacity .3s',
+    pointerEvents: 'none',
+  });
+  document.body.appendChild(el);
+  requestAnimationFrame(() => { el.style.opacity = '1'; });
+  setTimeout(() => {
+    el.style.opacity = '0';
+    setTimeout(() => el.remove(), 300);
+  }, duration);
+}
+
+function cleanupMedia(): void {
+  if (_recordMediaRecorder) { try { _recordMediaRecorder.stop(); } catch { /* ignore */ } _recordMediaRecorder = null; }
+  if (_recordStream) { _recordStream.getTracks().forEach(t => t.stop()); _recordStream = null; }
+  if (_recordTimer) { clearInterval(_recordTimer); _recordTimer = null; }
+}
+
+function closeWizard(): void {
+  cleanupMedia();
+  if (_modalEl) { _modalEl.remove(); _modalEl = null; }
+}
+
+export function openCloneWizard(): void {
+  renderWizard();
+}
+
+function renderWizard(): void {
+  if (_modalEl) _modalEl.remove();
+  const overlay = document.createElement('div');
+  overlay.className = 'app-modal-overlay';
+  overlay.id = 'cloneWizard';
+
+  overlay.innerHTML = `
+  <div class="app-modal clone-modal">
+    <div class="app-modal-title">FXTrace Clone — 硬件音色克隆</div>
+    <div class="clone-body">
+      <div class="clone-section" id="cwStep1">
+        <div class="clone-step-title"><span class="clone-step-num">1</span> 连接与校准</div>
+        <div class="clone-connect-box">
+          <div class="clone-connect-icon" id="cwSignalIcon">○</div>
+          <div class="clone-connect-text" id="cwConnectText">请将吉他 → 被测单块 → 声卡输入 连接好<br><small>先<b>不接</b>被测设备（直通）做基线校准</small></div>
+        </div>
+        <div class="clone-detect-row">
+          <button class="btn clone-detect-btn" id="cwDetectBtn">检测信号并校准基线</button>
+        </div>
+      </div>
+
+      <div class="clone-section" id="cwStep2" style="display:none">
+        <div class="clone-step-title"><span class="clone-step-num">2</span> 分析模式</div>
+        <div class="clone-mode-row">
+          <button class="clone-mode-btn active" data-mode="eq">频响匹配<br><small>仅EQ曲线</small></button>
+          <button class="clone-mode-btn" data-mode="dist">失真匹配<br><small>EQ + 削波 + 箱头</small></button>
+          <button class="clone-mode-btn" data-mode="full">完整克隆<br><small>全部效果器链</small></button>
+        </div>
+      </div>
+
+      <div class="clone-section" id="cwStep3" style="display:none">
+        <div class="clone-step-title"><span class="clone-step-num">3</span> 分析</div>
+        <div class="clone-gain-hint">现在<b>接上</b>被测单块，然后开始分析</div>
+        <div class="clone-analyze-area">
+          <div class="clone-progress-wrap"><div class="clone-progress-bar" id="cwProgressBar"></div></div>
+          <div class="clone-progress-text" id="cwProgressText">准备中...</div>
+        </div>
+        <button class="btn clone-start-btn" id="cwStartBtn">发送测试信号并分析</button>
+      </div>
+
+      <div class="clone-section" id="cwStep4" style="display:none">
+        <div class="clone-step-title"><span class="clone-step-num">4</span> 分析结果</div>
+        <div class="clone-result-area">
+          <canvas class="clone-result-canvas" id="cwResultCanvas" width="500" height="200"></canvas>
+          <div class="clone-match-info">
+            <span class="clone-match-pct" id="cwMatchPct">0%</span>
+            <span class="clone-match-label">匹配度</span>
+          </div>
+          <div class="clone-result-params" id="cwResultParams"></div>
+        </div>
+      </div>
+
+      <div class="clone-actions" id="cwActions" style="display:none">
+        <button class="btn" id="cwReAnalyze">重新分析</button>
+        <button class="btn" id="cwExportBtn">导出音色文件</button>
+        <button class="btn btn-primary" id="cwApplyBtn">应用到链路</button>
+      </div>
+    </div>
+    <div class="app-modal-actions">
+      <button class="btn" id="cwCloseBtn">关闭</button>
+    </div>
+  </div>`;
+
+  document.body.appendChild(overlay);
+  _modalEl = overlay;
+
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeWizard(); });
+  overlay.querySelector('#cwCloseBtn')!.addEventListener('click', closeWizard);
+
+  // 信号检测 + 基线校准（直通状态扫一遍）
+  overlay.querySelector('#cwDetectBtn')!.addEventListener('click', async function (this: HTMLButtonElement) {
+    const btn = this as HTMLButtonElement;
+    const connectText = overlay.querySelector('#cwConnectText') as HTMLElement;
+    btn.disabled = true;
+    btn.textContent = '检测中...';
+    const result = await detectInputSignal();
+    const icon = overlay.querySelector('#cwSignalIcon') as HTMLElement;
+    if (result.ok) {
+      icon.textContent = '●';
+      icon.style.color = '#4caf50';
+      btn.textContent = '校准基线中...';
+      connectText.innerHTML = '<span style="color:#4caf50">● 信号检测成功</span><br>正在校准声卡基线（请保持直通）...';
+      try {
+        const ctx = getAudioContext();
+        if (!ctx) throw new Error('音频上下文不可用');
+        _baseline = await captureBaseline(ctx);
+        connectText.innerHTML = '<span style="color:#4caf50">● 校准完成</span><br>现在接上被测单块，选择分析模式';
+        (overlay.querySelector('#cwStep2') as HTMLElement).style.display = '';
+        (overlay.querySelector('#cwStep3') as HTMLElement).style.display = '';
+        btn.textContent = '● 校准完成';
+      } catch (e) {
+        connectText.innerHTML = '<span style="color:#ff9800">● 校准失败: ' + (e instanceof Error ? e.message : String(e)) + '</span><br>请重试或检查麦克风连接';
+        btn.textContent = '重新检测';
+      }
+    } else {
+      icon.textContent = '●';
+      icon.style.color = '#ff5252';
+      connectText.innerHTML = '<span style="color:#ff5252">● ' + (result.error || '未检测到信号') + '</span><br>请检查吉他 → 被测单块 → 声卡输入连接';
+      btn.textContent = '重新检测';
+    }
+    btn.disabled = false;
+  });
+
+  // 模式选择
+  let selectedMode: CloneMode = 'eq';
+  overlay.querySelectorAll<HTMLElement>('.clone-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      overlay.querySelectorAll<HTMLElement>('.clone-mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      selectedMode = (btn.dataset.mode as CloneMode) || 'eq';
+    });
+  });
+
+  // 开始分析
+  overlay.querySelector('#cwStartBtn')!.addEventListener('click', async function (this: HTMLButtonElement) {
+    if (_analyzing) return;
+    _analyzing = true;
+    const btn = this as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = '分析中...';
+    const bar = overlay.querySelector('#cwProgressBar') as HTMLElement;
+    const text = overlay.querySelector('#cwProgressText') as HTMLElement;
+
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) throw new Error('音频上下文不可用');
+      if (!_baseline) throw new Error('基线未校准，请先执行第 1 步');
+
+      bar.style.width = '10%';
+      text.textContent = '采集频响数据...';
+      await new Promise(r => setTimeout(r, 100));
+
+      const sweep = await captureSweepResponse(ctx, _baseline);
+      bar.style.width = '35%';
+      text.textContent = '拟合EQ参数...';
+      await new Promise(r => setTimeout(r, 100));
+
+      const eqBands = fitEqBands(sweep.freqs, sweep.response);
+      const matchPct = computeMatchPct(sweep.freqs, sweep.response, eqBands);
+      const freqProfile = analyzeFreqProfile(sweep.freqs, sweep.response);
+
+      let distortionType: 'soft' | 'hard' | 'none' = 'none';
+      let driveAmount = 0;
+      let thd = 0;
+      let dynamicRatio = 1;
+      let dynamicThreshold = 0.15;
+
+      if (selectedMode === 'dist' || selectedMode === 'full') {
+        bar.style.width = '55%';
+        text.textContent = '分析谐波失真...';
+        await new Promise(r => setTimeout(r, 100));
+        thd = await captureThd(ctx, computeThdFromPeaks);
+        distortionType = classifyDistortion(thd);
+        driveAmount = 0; // I/O 路径无法直接反解增益（P2 多电平扫频改进）
+      }
+
+      if (selectedMode === 'full') {
+        bar.style.width = '75%';
+        text.textContent = '分析动态响应...';
+        await new Promise(r => setTimeout(r, 100));
+        const levels = await captureDynamicLevels(ctx);
+        const dyn = computeDynamicRatio(levels);
+        dynamicRatio = dyn.ratio;
+        dynamicThreshold = dyn.threshold;
+      }
+
+      bar.style.width = '90%';
+      text.textContent = '匹配效果器...';
+      await new Promise(r => setTimeout(r, 100));
+
+      const matchedDrive = (selectedMode !== 'eq') ? selectDriveEffect(thd, distortionType, driveAmount, freqProfile) : null;
+      const matchedAmp = (selectedMode !== 'eq') ? selectAmpModel(freqProfile, thd) : null;
+      const matchedCab = (selectedMode === 'full') ? selectCabinet(freqProfile) : null;
+
+      bar.style.width = '100%';
+      text.textContent = '分析完成！';
+
+      _result = {
+        mode: selectedMode,
+        eqBands, matchPct, distortionType, thd, driveAmount,
+        levelDb: 0, dynamicRatio, dynamicThreshold,
+        freqProfile,
+        matchedDrive, matchedAmp, matchedCab,
+        rawResponse: { freqs: Array.from(sweep.freqs), response: Array.from(sweep.response) },
+      };
+
+      showResult(sweep.freqs, sweep.response, eqBands, matchPct);
+    } catch (e) {
+      text.textContent = '分析失败: ' + (e instanceof Error ? e.message : String(e));
+    } finally {
+      _analyzing = false;
+      btn.disabled = false;
+      btn.textContent = '重新分析';
+    }
+  });
+
+  // 重新分析
+  overlay.querySelector('#cwReAnalyze')!.addEventListener('click', () => {
+    (overlay.querySelector('#cwStep4') as HTMLElement).style.display = 'none';
+    (overlay.querySelector('#cwActions') as HTMLElement).style.display = 'none';
+    (overlay.querySelector('#cwStartBtn') as HTMLElement).textContent = '发送测试信号并分析';
+    (overlay.querySelector('#cwProgressBar') as HTMLElement).style.width = '0%';
+    (overlay.querySelector('#cwProgressText') as HTMLElement).textContent = '准备中...';
+  });
+
+  // 导出音色文件（文件即存储）
+  overlay.querySelector('#cwExportBtn')!.addEventListener('click', () => {
+    if (!_result) return;
+    const name = '克隆音色 ' + new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    const tone = cloneResultToTone(name, _result, 'device');
+    downloadTone(tone);
+    showToast('音色已导出: ' + tone.name);
+    _onCloneSaved?.(tone);
+  });
+
+  // 应用到链路
+  overlay.querySelector('#cwApplyBtn')!.addEventListener('click', () => {
+    if (!_result) return;
+    _onApply?.(_result);
+    closeWizard();
+  });
+
+  function showResult(freqs: Float32Array, response: Float32Array, bands: number[], matchPct: number): void {
+    (overlay.querySelector('#cwStep4') as HTMLElement).style.display = '';
+    (overlay.querySelector('#cwActions') as HTMLElement).style.display = '';
+    (overlay.querySelector('#cwMatchPct') as HTMLElement).textContent = matchPct + '%';
+
+    let paramsHtml = buildFitTableHtml(freqs, response, bands);
+    if (_result) {
+      if (_result.matchedDrive) {
+        paramsHtml += `<tr><td>失真单块</td><td style="color:#ff9800">${_result.matchedDrive.name} (THD ${(_result.thd * 100).toFixed(1)}%)</td></tr>`;
+      } else if (_result.distortionType !== 'none') {
+        paramsHtml += `<tr><td>削波类型</td><td>${_result.distortionType === 'soft' ? '软削波' : '硬削波'} (THD ${(_result.thd * 100).toFixed(1)}%)</td></tr>`;
+      }
+      if (_result.matchedAmp) {
+        paramsHtml += `<tr><td>箱头</td><td style="color:#26c6da">${_result.matchedAmp.name} (${_result.matchedAmp.channel === 1 ? '失真通道' : '清音通道'})</td></tr>`;
+      }
+      if (_result.matchedCab) {
+        paramsHtml += `<tr><td>箱体</td><td style="color:#8bc34a">${_result.matchedCab.name}</td></tr>`;
+      }
+      if (_result.dynamicRatio > 1.2) {
+        paramsHtml += `<tr><td>压缩</td><td>压缩比 ${_result.dynamicRatio.toFixed(1)}:1</td></tr>`;
+      }
+      paramsHtml += '</table>';
+    }
+    (overlay.querySelector('#cwResultParams') as HTMLElement).innerHTML = paramsHtml;
+
+    drawResponseChart(overlay.querySelector('#cwResultCanvas') as HTMLCanvasElement, freqs, response, bands);
+  }
+}

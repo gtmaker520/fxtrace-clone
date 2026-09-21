@@ -1,0 +1,19 @@
+{
+  "name": "fxtrace-clone",
+  "version": "0.1.0",
+  "description": "Capture your pedal's tone. Rebuild it in software. Hardware tone measurement + parameterized clone engine for guitar effects.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vite": "^5.4.0",
+    "vitest": "^2.0.0"
+  }
+}

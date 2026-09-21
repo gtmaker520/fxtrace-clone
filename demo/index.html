@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FXTrace Clone — 硬件音色克隆 Demo</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', sans-serif; background: #0d0f1a; color: #e0e0e0; }
+    header { padding: 20px 24px; border-bottom: 1px solid #1e2235; }
+    header h1 { margin: 0; font-size: 20px; color: #26c6da; }
+    header p { margin: 6px 0 0; font-size: 13px; color: #888; }
+    main { max-width: 760px; margin: 0 auto; padding: 24px; }
+    .card { background: #12152a; border: 1px solid #1e2235; border-radius: 10px; padding: 18px 20px; margin-bottom: 18px; }
+    .card h2 { margin: 0 0 12px; font-size: 15px; color: #26c6da; }
+    .btn { display: inline-block; padding: 8px 18px; border: 1px solid #2a2f4a; border-radius: 6px; background: #1a1e33; color: #e0e0e0; font-size: 14px; cursor: pointer; }
+    .btn:hover { background: #232845; }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary { background: #00796b; border-color: #00796b; }
+    .btn-primary:hover { background: #00897b; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .mode-btn { padding: 10px 16px; border: 1px solid #2a2f4a; border-radius: 8px; background: #161a2e; color: #aaa; font-size: 13px; cursor: pointer; text-align: center; line-height: 1.5; }
+    .mode-btn small { display: block; font-size: 11px; color: #666; }
+    .mode-btn.active { border-color: #26c6da; color: #26c6da; }
+    .progress-wrap { background: #0d0f1a; border-radius: 4px; height: 8px; overflow: hidden; margin: 10px 0 6px; }
+    .progress-bar { height: 100%; width: 0%; background: #26c6da; transition: width .3s; }
+    .progress-text { font-size: 12px; color: #999; min-height: 18px; }
+    canvas.result-canvas { width: 100%; height: 200px; background: #0d0f1a; border-radius: 6px; }
+    canvas.wave-canvas { width: 100%; height: 90px; background: #0d0f1a; border-radius: 6px; cursor: crosshair; }
+    .match-info { margin: 10px 0; }
+    .match-pct { font-size: 32px; font-weight: 700; color: #26c6da; }
+    .match-label { font-size: 12px; color: #888; margin-left: 8px; }
+    table.params { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+    table.params th, table.params td { padding: 5px 8px; border-bottom: 1px solid #1e2235; text-align: left; }
+    table.params th { color: #888; font-weight: 500; }
+    .hint { font-size: 12px; color: #777; line-height: 1.7; }
+    .drop-zone { border: 2px dashed #2a2f4a; border-radius: 10px; padding: 28px; text-align: center; cursor: pointer; color: #888; }
+    .drop-zone.dragover, .drop-zone:hover { border-color: #26c6da; color: #26c6da; }
+    .section-hidden { display: none; }
+    /* 克隆弹窗复用样式（wizard.ts 生成 .app-modal-overlay 等） */
+    .app-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .app-modal { background: #12152a; border: 1px solid #2a2f4a; border-radius: 12px; max-width: 640px; width: calc(100% - 32px); max-height: 90vh; overflow-y: auto; padding: 20px 22px; }
+    .app-modal-title { font-size: 16px; color: #26c6da; margin-bottom: 14px; }
+    .app-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 16px; }
+    .clone-section { margin-bottom: 16px; }
+    .clone-step-title { font-size: 13px; color: #ccc; margin-bottom: 8px; }
+    .clone-step-num { display: inline-block; width: 20px; height: 20px; line-height: 20px; text-align: center; border-radius: 50%; background: #26c6da; color: #0d0f1a; font-weight: 700; margin-right: 6px; }
+    .clone-connect-box { display: flex; gap: 10px; align-items: center; background: #0d0f1a; border-radius: 8px; padding: 12px; margin-bottom: 10px; }
+    .clone-connect-icon { font-size: 22px; color: #666; }
+    .clone-connect-text { font-size: 13px; line-height: 1.6; }
+    .clone-connect-text small { color: #888; }
+    .clone-detect-row, .clone-analyze-area { margin: 8px 0; }
+    .clone-progress-wrap { background: #0d0f1a; border-radius: 4px; height: 8px; overflow: hidden; margin-bottom: 6px; }
+    .clone-progress-bar { height: 100%; width: 0%; background: #26c6da; transition: width .3s; }
+    .clone-progress-text { font-size: 12px; color: #999; min-height: 18px; }
+    .clone-mode-row { display: flex; gap: 10px; }
+    .clone-gain-hint { font-size: 12px; color: #999; margin-bottom: 8px; }
+    .clone-result-area { margin-top: 6px; }
+    .clone-result-canvas { width: 100%; height: 200px; background: #0d0f1a; border-radius: 6px; }
+    .clone-match-info { margin: 10px 0; }
+    .clone-match-pct { font-size: 30px; font-weight: 700; color: #26c6da; }
+    .clone-match-label { font-size: 12px; color: #888; margin-left: 8px; }
+    .clone-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .clone-start-btn { width: 100%; }
+    .clone-params-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+    .clone-params-table th, .clone-params-table td { padding: 5px 8px; border-bottom: 1px solid #1e2235; text-align: left; }
+    .clone-params-table th { color: #888; font-weight: 500; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>FXTrace Clone</h1>
+    <p>Capture your pedal's tone. Rebuild it in software. — 硬件音色测量 + 参数化克隆引擎 demo</p>
+  </header>
+  <main>
+    <div class="card">
+      <h2>路径 A：设备克隆（扫频测量）</h2>
+      <p class="hint">吉他 →（不接被测设备先校准基线）→ 声卡。校准后接上被测单块，走完 测量→拟合→选型→导出 全流程。</p>
+      <div class="row" style="margin-top:10px">
+        <button class="btn btn-primary" id="openWizardBtn">打开克隆向导</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>路径 B：音频文件克隆</h2>
+      <p class="hint">导入一段录音（MP3/WAV/OGG/FLAC），在波形上拖拽选择一段独立吉他演奏，分析并匹配效果链。混音素材会自动按 0.45 缩放 THD 估计。</p>
+      <div class="drop-zone" id="dropZone">🎵 拖拽音频文件到此处，或点击选择<br><small>支持 MP3 / WAV / OGG / FLAC</small></div>
+      <input type="file" id="fileInput" accept=".mp3,.wav,.ogg,.flac,audio/*" style="display:none">
+      <div id="waveSection" class="section-hidden" style="margin-top:12px">
+        <canvas class="wave-canvas" id="waveCanvas" width="700" height="90"></canvas>
+        <p class="hint" id="selInfo">在波形上拖拽选择吉他段落</p>
+        <div class="row" style="margin-top:8px">
+          <button class="btn mode-btn active" data-mode="eq">频响匹配<br><small>仅EQ曲线</small></button>
+          <button class="btn mode-btn" data-mode="dist">失真匹配<br><small>EQ + 削波 + 箱头</small></button>
+          <button class="btn mode-btn" data-mode="full">完整克隆<br><small>全套效果链</small></button>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <button class="btn btn-primary" id="analyzeAudioBtn">分析选区</button>
+          <button class="btn" id="playSelBtn" disabled>▶ 播放选区</button>
+          <button class="btn" id="exportAudioToneBtn" disabled>导出音色文件</button>
+        </div>
+        <div class="progress-wrap"><div class="progress-bar" id="aBar"></div></div>
+        <div class="progress-text" id="aText"></div>
+      </div>
+    </div>
+
+    <div class="card section-hidden" id="audioResultCard">
+      <h2>音频克隆结果</h2>
+      <div class="match-info"><span class="match-pct" id="aMatchPct">0%</span><span class="match-label">匹配度</span></div>
+      <canvas class="result-canvas" id="aResultCanvas" width="700" height="200"></canvas>
+      <div id="aResultParams"></div>
+    </div>
+  </main>
+
+  <script type="module" src="/demo/main.ts"></script>
+</body>
+</html>
