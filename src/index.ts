@@ -10,7 +10,7 @@ export * from './engine/fitting';
 export * from './engine/matching';
 
 // WebAudio 胶水
-export { getAudioContext, closeAudioContext, detectInputSignal, listInputDevices, captureBaseline, captureSweepResponse, captureThd, captureThdMultiLevel, captureDynamicLevels, playAndCapturePeaks, renderSweepBuffer } from './audio/io';
+export { getAudioContext, closeAudioContext, detectInputSignal, listInputDevices, captureBaseline, captureSweepResponse, captureThd, captureThdMultiLevel, captureDynamicLevels, playAndCapturePeaks, renderSweepBuffer, isMonitoring, startMonitor, stopMonitor } from './audio/io';
 export { MiniFxChain } from './audio/chain';
 export * from './audio/curves';
 

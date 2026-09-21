@@ -291,3 +291,46 @@ export async function captureDynamicLevels(ctx: AudioContext, frames = 40): Prom
   }
   return levels;
 }
+
+// ── 实时监听（P3 用户体验补全）──
+// 应用克隆链路后，把麦克风输入实时接到 chain.input，使弹奏能立刻听到处理后的声音。
+// 之前版本只有"应用参数"，没有任何东西持续给链路送音频——弹吉他自然无声。
+
+let _monitorStream: MediaStream | null = null;
+let _monitorSrc: MediaStreamAudioSourceNode | null = null;
+let _monitorGain: GainNode | null = null;
+
+/** 当前是否正在监听 */
+export function isMonitoring(): boolean {
+  return _monitorStream !== null;
+}
+
+/**
+ * 开启实时监听：麦克风 → (返回值接 chain.input)。
+ * 用法：const monitorOut = await startMonitor(ctx); chain.input.connect 之前先接 monitorOut。
+ * 返回监听输出节点（已带静音开关控制）。
+ * 注意：扬声器外放可能啸叫，建议戴耳机；延迟取决于声卡驱动（专业 ASIO 低延迟）。
+ */
+export async function startMonitor(ctx: AudioContext, deviceId?: string): Promise<{ output: GainNode; setMuted: (m: boolean) => void }> {
+  await stopMonitor();
+  if (ctx.state === 'suspended') { try { await ctx.resume(); } catch { /* ignore */ } }
+  const stream = await navigator.mediaDevices.getUserMedia({
+    audio: { ...AUDIO_CONSTRAINTS, ...(deviceId ? { deviceId: { exact: deviceId } } : {}) },
+  });
+  _monitorStream = stream;
+  _monitorSrc = ctx.createMediaStreamSource(stream);
+  _monitorGain = ctx.createGain();
+  _monitorGain.gain.value = 1;
+  _monitorSrc.connect(_monitorGain);
+  return {
+    output: _monitorGain,
+    setMuted: (m: boolean) => { if (_monitorGain) _monitorGain.gain.value = m ? 0 : 1; },
+  };
+}
+
+/** 停止监听并释放麦克风 */
+export async function stopMonitor(): Promise<void> {
+  if (_monitorSrc) { try { _monitorSrc.disconnect(); } catch { /* ignore */ } _monitorSrc = null; }
+  if (_monitorGain) { try { _monitorGain.disconnect(); } catch { /* ignore */ } _monitorGain = null; }
+  if (_monitorStream) { _monitorStream.getTracks().forEach(t => t.stop()); _monitorStream = null; }
+}

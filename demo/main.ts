@@ -10,27 +10,66 @@ import { analyzeAudioSelection } from '../src/io/file-clone';
 import { drawResponseChart, buildFitTableHtml, drawWaveform } from '../src/ui/charts';
 import { cloneResultToTone, downloadTone, parseToneFile } from '../src/io/tone-file';
 import { MiniFxChain, applyTone } from '../src/index';
-import { getAudioContext } from '../src/audio/io';
+import { getAudioContext, startMonitor, stopMonitor, isMonitoring } from '../src/audio/io';
 import type { CloneMode, CloneResult } from '../src/engine/types';
 
 // ── 路径 A：设备克隆向导 ──
 let demoChain: MiniFxChain | null = null;
-setOnApply((result) => {
+let monitorOut: Awaited<ReturnType<typeof startMonitor>> | null = null;
+const monitorBtn = document.getElementById('monitorBtn') as HTMLButtonElement;
+
+/** 确保链路存在且监听已开启（麦克风 → monitorGain → chain.input → 链路 → 扬声器） */
+async function ensureChainAndMonitor(): Promise<MiniFxChain | null> {
   const ctx = getAudioContext();
-  if (!ctx) { showToast('音频上下文不可用'); return; }
+  if (!ctx) { showToast('音频上下文不可用'); return null; }
   if (!demoChain) demoChain = new MiniFxChain(ctx);
-  applyTone(demoChain, result);
-  showToast(`已应用：${result.matchedDrive?.name ?? '无单块'} + ${result.matchedAmp?.name ?? '无箱头'} + ${result.matchedCab?.name ?? '无箱体'}，现在可以弹奏试听`);
+  if (!isMonitoring()) {
+    try {
+      monitorOut = await startMonitor(ctx);
+      monitorOut.output.connect(demoChain.input);
+      monitorBtn.textContent = '⏸ 停止监听';
+    } catch (e) {
+      showToast('监听开启失败（麦克风权限/占用）: ' + (e instanceof Error ? e.message : String(e)));
+      return null;
+    }
+  }
+  return demoChain;
+}
+
+/** 应用音色/导入音色后统一走这里：装链路 + 自动开监听（若未开） */
+async function applyAndMonitor(result: CloneResult, label: string): Promise<void> {
+  const chain = await ensureChainAndMonitor();
+  if (!chain) return;
+  applyTone(chain, result);
+  showToast(`${label}已应用到链路${isMonitoring() ? '，正在监听——现在可以弹奏' : ''}`);
+}
+
+setOnApply((result) => {
+  void applyAndMonitor(result, `${result.matchedDrive?.name ?? '无单块'} + ${result.matchedAmp?.name ?? '无箱头'} + ${result.matchedCab?.name ?? '无箱体'}`);
 });
+
+// 手动监听开关（不应用音色也能试直通/已装链路）
+monitorBtn.addEventListener('click', async () => {
+  if (isMonitoring()) {
+    await stopMonitor();
+    monitorOut = null;
+    monitorBtn.textContent = '▶ 开启监听（弹奏试听）';
+    return;
+  }
+  const chain = await ensureChainAndMonitor();
+  if (chain) showToast('监听已开启——现在可以弹奏（外放请小心啸叫，建议耳机）');
+});
+
 document.getElementById('openWizardBtn')!.addEventListener('click', openCloneWizard);
 
 // P3：W-H 真克隆模型 → chain.loadWH 应用（pre-IIR → WaveShaper → post-IIR，立即可弹）
 setOnWHApply((model) => {
-  const ctx = getAudioContext();
-  if (!ctx) { showToast('音频上下文不可用'); return; }
-  if (!demoChain) demoChain = new MiniFxChain(ctx);
-  demoChain.loadWH(model);
-  showToast('W-H 真克隆模型已应用到链路，现在可以弹奏试听');
+  void (async () => {
+    const chain = await ensureChainAndMonitor();
+    if (!chain) return;
+    chain.loadWH(model);
+    showToast(`W-H 真克隆模型已应用到链路${isMonitoring() ? '，正在监听——现在可以弹奏' : ''}`);
+  })();
 });
 
 // ── 导入音色文件 → 一键恢复链路 ──
