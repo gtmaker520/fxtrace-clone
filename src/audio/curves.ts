@@ -84,7 +84,9 @@ export function makeMetalCurve(amount: number, _sr: number) {
   const n = WS_CURVE_LENGTH;
   const curve = new Float32Array(n);
   const a = Math.max(0, Math.min(1, amount));
-  const th = 0.65;
+  // 阈值随 dist 下调：0 → 0.45（轻过载），1 → 0.18（金属级深削波）
+  // 增益仍由链路 preGain 承担，但阈值必须进入吉他信号实际电平范围才有削波感
+  const th = 0.45 - a * 0.27;
   const knee = 0.12 * (1 - a * 0.7);
   for (let i = 0; i < n; i++) {
     const x = (i / (n - 1)) * 2 - 1;
