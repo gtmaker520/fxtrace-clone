@@ -93,7 +93,10 @@ export async function detectInputSignal(deviceId?: string, timeoutMs = 3000): Pr
     }
     src.disconnect();
     anl.disconnect();
-    if (peakRms > 0.002) return { ok: true, rms: peakRms };
+    if (peakRms > 0.002) {
+      _lastInputRms = peakRms; // 记录实测输入电平，供前级增益自适应（computeDriveGain）
+      return { ok: true, rms: peakRms };
+    }
     return {
       ok: false,
       rms: peakRms,
@@ -299,6 +302,12 @@ export async function captureDynamicLevels(ctx: AudioContext, frames = 40): Prom
 let _monitorStream: MediaStream | null = null;
 let _monitorSrc: MediaStreamAudioSourceNode | null = null;
 let _monitorGain: GainNode | null = null;
+
+// 信号检测时记录的实测输入电平（线性 RMS），供前级增益自适应
+let _lastInputRms = 0.1; // 无检测数据时的合理默认（弱麦克风电平）
+export function getLastInputRms(): number {
+  return _lastInputRms;
+}
 
 /** 当前是否正在监听 */
 export function isMonitoring(): boolean {

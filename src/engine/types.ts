@@ -40,6 +40,8 @@ export interface CloneResult {
   mode: CloneMode;
   eqBands: number[];
   matchPct: number;
+  /** 失真特征匹配度（与 matchPct 并列：matchPct=静态频响拟合优度，本字段=失真特征还原把握） */
+  distortionMatchPct: number;
   distortionType: 'soft' | 'hard' | 'none';
   thd: number;
   driveAmount: number;

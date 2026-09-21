@@ -89,28 +89,7 @@
         <span class="hint" id="importToneInfo"></span>
       </div>
       <p class="hint" style="margin-top:8px">监听：麦克风 → 克隆链路 → 扬声器。应用音色后自动开启；<b>外放可能啸叫，建议戴耳机</b>。延迟取决于声卡驱动。</p>
-      <div id="tweakPanel" class="section-hidden" style="margin-top:12px; border-top:1px solid #2a2f4a; padding-top:10px">
-        <p class="hint" style="margin-bottom:6px"><b>音色微调</b>（导入/应用后可实时调整，不影响已保存的音色文件）</p>
-        <div class="row" style="align-items:center">
-          <span class="hint" style="min-width:64px">箱体</span>
-          <select id="tweakCab" style="flex:1; max-width:260px; padding:5px; background:#161a2e; color:#ccc; border:1px solid #2a2f4a; border-radius:6px; font-size:13px"></select>
-        </div>
-        <div class="row" style="align-items:center; margin-top:6px">
-          <span class="hint" style="min-width:64px">失真度</span>
-          <input type="range" id="tweakDist" min="0" max="100" value="50" style="flex:1; max-width:260px">
-          <span class="hint" id="tweakDistVal" style="min-width:36px">50</span>
-        </div>
-        <div class="row" style="align-items:center; margin-top:6px">
-          <span class="hint" style="min-width:64px">箱头增益</span>
-          <input type="range" id="tweakGain" min="0" max="100" value="35" style="flex:1; max-width:260px">
-          <span class="hint" id="tweakGainVal" style="min-width:36px">35</span>
-        </div>
-        <div class="row" style="align-items:center; margin-top:6px">
-          <span class="hint" style="min-width:64px">单块电平</span>
-          <input type="range" id="tweakLevel" min="0" max="100" value="30" style="flex:1; max-width:260px">
-          <span class="hint" id="tweakLevelVal" style="min-width:36px">30</span>
-        </div>
-      </div>
+      <div id="tweakHost"></div>
     </div>
 
     <div class="card">
@@ -138,7 +117,7 @@
 
     <div class="card section-hidden" id="audioResultCard">
       <h2>音频克隆结果</h2>
-      <div class="match-info"><span class="match-pct" id="aMatchPct">0%</span><span class="match-label">匹配度</span></div>
+      <div class="match-info"><span class="match-pct" id="aMatchPct">0%</span><span class="match-label">频响匹配度</span><span class="match-pct" id="aDistMatchPct" style="margin-left:14px">—</span><span class="match-label">失真匹配度</span></div>
       <canvas class="result-canvas" id="aResultCanvas" width="700" height="200"></canvas>
       <div id="aResultParams"></div>
     </div>

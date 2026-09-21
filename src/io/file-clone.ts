@@ -4,7 +4,7 @@
 // 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
 
 import type { FreqProfile } from '../engine/types';
-import { fitEqBands, computeMatchPct } from '../engine/fitting';
+import { fitEqBands, computeMatchPct, computeDistortionMatchPct } from '../engine/fitting';
 import { analyzeFreqProfile, classifyDistortion } from '../engine/analysis';
 import { selectDriveEffect, selectAmpModel, selectCabinet } from '../engine/matching';
 import type { CloneMode, CloneResult } from '../engine/types';
@@ -169,9 +169,16 @@ export function analyzeAudioSelection(sel: Float32Array, sr: number, opts: Audio
   const matchedAmp = (opts.mode !== 'eq') ? selectAmpModel(fp, thd) : null;
   const matchedCab = (opts.mode === 'full') ? selectCabinet(fp) : null;
 
+  // 失真特征匹配度（eq 模式不适用记 100；候选侧用实测特征自评，与向导路径同口径）
+  const distortionMatchPct = opts.mode === 'eq' ? 100
+    : computeDistortionMatchPct(
+        { distortionType, thd, dynamicRatio: 1 },
+        { distortionType, thd: Math.max(thd, 0.01), dynamicRatio: 1 }
+      );
+
   return {
     mode: opts.mode,
-    eqBands, matchPct, distortionType, thd, driveAmount,
+    eqBands, matchPct, distortionMatchPct, distortionType, thd, driveAmount,
     levelDb: 0, dynamicRatio: 1, dynamicThreshold: 0.15,
     freqProfile: fp,
     matchedDrive, matchedAmp, matchedCab,

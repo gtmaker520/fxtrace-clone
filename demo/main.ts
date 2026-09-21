@@ -9,69 +9,15 @@ import { setOnWHApply } from '../src/ui/wizard';
 import { analyzeAudioSelection } from '../src/io/file-clone';
 import { drawResponseChart, buildFitTableHtml, drawWaveform } from '../src/ui/charts';
 import { cloneResultToTone, downloadTone, parseToneFile } from '../src/io/tone-file';
-import { MiniFxChain, applyTone, CAB_VARIANTS } from '../src/index';
+import { MiniFxChain, applyTone } from '../src/index';
+import { createTweakPanel } from '../src/ui/tweak-panel';
 import { getAudioContext, startMonitor, stopMonitor, isMonitoring } from '../src/audio/io';
 import type { CloneMode, CloneResult } from '../src/engine/types';
 
-// ── 音色微调面板：换箱体 / 调失真度 / 箱头增益 / 单块电平 ──
-const tweakPanel = document.getElementById('tweakPanel')!;
-const tweakCab = document.getElementById('tweakCab') as HTMLSelectElement;
-const tweakDist = document.getElementById('tweakDist') as HTMLInputElement;
-const tweakGain = document.getElementById('tweakGain') as HTMLInputElement;
-const tweakLevel = document.getElementById('tweakLevel') as HTMLInputElement;
-const tweakDistVal = document.getElementById('tweakDistVal')!;
-const tweakGainVal = document.getElementById('tweakGainVal')!;
-const tweakLevelVal = document.getElementById('tweakLevelVal')!;
-
-for (const v of CAB_VARIANTS) {
-  const opt = document.createElement('option');
-  opt.value = String(v.id);
-  opt.textContent = `${v.name} (${v.short})`;
-  tweakCab.appendChild(opt);
-}
-
-/** 应用/导入后把音色参数同步到面板显示 */
-function syncTweakPanel(result: CloneResult): void {
-  tweakPanel.classList.remove('section-hidden');
-  if (result.matchedCab) tweakCab.value = String(result.matchedCab.variant);
-  if (result.matchedDrive) {
-    tweakDist.value = String(Math.round(result.matchedDrive.params.dist ?? 50));
-    tweakDistVal.textContent = tweakDist.value;
-    tweakLevel.value = String(Math.round((result.matchedDrive.params.level ?? 0.3) * 100));
-    tweakLevelVal.textContent = tweakLevel.value;
-  }
-  if (result.matchedAmp) {
-    tweakGain.value = String(Math.round(result.matchedAmp.params.gain ?? 35));
-    tweakGainVal.textContent = tweakGain.value;
-  }
-}
-
-function findNodeId(kind: 'drive' | 'amp' | 'cab'): string | null {
-  return demoChain?.nodesSnapshot.find(n => n.kind === kind)?.id ?? null;
-}
-
-tweakCab.addEventListener('change', () => {
-  const id = findNodeId('cab');
-  if (id && demoChain) demoChain.setParam(id, 'variant', Number(tweakCab.value));
-});
-tweakDist.addEventListener('input', () => {
-  tweakDistVal.textContent = tweakDist.value;
-  const id = findNodeId('drive');
-  if (id && demoChain) demoChain.setParam(id, 'drive', Number(tweakDist.value) / 100);
-});
-tweakGain.addEventListener('input', () => {
-  tweakGainVal.textContent = tweakGain.value;
-  const id = findNodeId('amp');
-  if (id && demoChain) demoChain.setParam(id, 'gain', Number(tweakGain.value));
-});
-tweakLevel.addEventListener('input', () => {
-  tweakLevelVal.textContent = tweakLevel.value;
-  const id = findNodeId('drive');
-  if (id && demoChain) demoChain.setParam(id, 'level', Number(tweakLevel.value) / 100);
-});
-
-// ── 路径 A：设备克隆向导 ──
+// ── 音色微调面板（ui 层组件，demo 只负责宿主挂载与链路 getter）──
 let demoChain: MiniFxChain | null = null;
+const tweak = createTweakPanel(document.getElementById('tweakHost')!, () => demoChain);
+const syncTweakPanel = tweak.sync;
 let monitorOut: Awaited<ReturnType<typeof startMonitor>> | null = null;
 const monitorBtn = document.getElementById('monitorBtn') as HTMLButtonElement;
 
@@ -294,6 +240,7 @@ document.getElementById('analyzeAudioBtn')!.addEventListener('click', async func
     const resultCard = document.getElementById('audioResultCard')!;
     resultCard.classList.remove('section-hidden');
     document.getElementById('aMatchPct')!.textContent = audioResult.matchPct + '%';
+    document.getElementById('aDistMatchPct')!.textContent = audioResult.distortionMatchPct + '%';
     let html = buildFitTableHtml(new Float32Array(audioResult.rawResponse?.freqs ?? []), new Float32Array(audioResult.rawResponse?.response ?? []), audioResult.eqBands);
     if (audioResult.matchedDrive) html += `<tr><td>失真单块</td><td style="color:#ff9800">${audioResult.matchedDrive.name} (THD ${(audioResult.thd * 100).toFixed(1)}%)</td></tr>`;
     if (audioResult.matchedAmp) html += `<tr><td>箱头</td><td style="color:#26c6da">${audioResult.matchedAmp.name}</td></tr>`;

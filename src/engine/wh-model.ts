@@ -32,14 +32,3 @@ export function makeIdentityNonlinear(): Float32Array {
   for (let i = 0; i < n; i++) curve[i] = (i / (n - 1)) * 2 - 1;
   return curve;
 }
-
-/**
- * WH 链路应用到 MiniFxChain（预留接口，P3⑤ 接入）
- * 先接 pre-filter Biquad → WaveShaper(nonlinear) → post-filter Biquad
- */
-export function applyWHModel(
-  _chain: unknown, // MiniFxChain
-  _model: WHModel
-): void {
-  // TODO: P3⑤ 实现
-}

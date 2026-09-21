@@ -193,3 +193,19 @@ export function computeDynamicRatio(levels: number[]): { ratio: number; threshol
   }
   return { ratio, threshold };
 }
+
+/**
+ * 前级增益自适应（P2 补强）：根据实测输入电平计算单块前级增益。
+ * 目标：dist=1 时信号达削波阈值 th 的 2.5 倍过驱动（真实高增益单块量级），
+ * dist 线性缩小过驱动倍数；输入越弱增益越高，替代固定系数标定。
+ * @param inputRms 实测输入电平（线性 RMS，来自 detectInputSignal）
+ * @param drive 失真度 0-1
+ * @param th 削波阈值（与曲线 builder 一致，如 metal 满驱动 0.18）
+ * @returns 前级增益（倍数），限制在 [1, 80] 防爆音
+ */
+export function computeDriveGain(inputRms: number, drive: number, th = 0.18): number {
+  const rms = Math.max(inputRms, 1e-4); // 防除零
+  const overdrive = 1 + drive * 1.5; // dist=1 → 2.5×过驱动
+  const gain = (overdrive * th) / rms;
+  return Math.min(80, Math.max(1, gain));
+}

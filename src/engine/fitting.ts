@@ -96,3 +96,37 @@ export function predictResponse(f: number, bands: number[]): number {
   }
   return weightSum > 0 ? predicted / weightSum : 0;
 }
+
+/**
+ * 失真特征匹配度（与 computeMatchPct 的频响匹配度并列展示，二者衡量维度不同）：
+ * 频响匹配度只说明静态 EQ 曲线拟合得好，不代表失真特性像。
+ * 本函数按 失真类型一致性 + THD 量级 + 动态压缩 三项加权评估失真侧的相似程度。
+ *
+ * @param ref 参考侧（设备克隆=扫频实测；音频克隆=文件分析结果）
+ * @param cand 候选侧（选型引擎给出的预设特征）
+ */
+export interface DistortionFeatures {
+  distortionType: 'soft' | 'hard' | 'none';
+  thd: number;        // 百分数
+  dynamicRatio: number; // 1=无压缩，>1 压缩比
+}
+
+export function computeDistortionMatchPct(ref: DistortionFeatures, cand: DistortionFeatures): number {
+  // ① 失真类型一致性（权重 40%）：hard↔hard / soft↔soft 满分，none 与其余为 0
+  const typeMatch = ref.distortionType === cand.distortionType ? 1 : 0;
+
+  // ② THD 量级接近度（权重 35%）：log 域相对距离，1 个数量级差 ≈ 0 分
+  const thdMatch = (() => {
+    const a = Math.max(ref.thd, 1e-4), b = Math.max(cand.thd, 1e-4);
+    const ratio = Math.max(a, b) / Math.min(a, b);
+    return Math.max(0, 1 - Math.log10(ratio));
+  })();
+
+  // ③ 动态压缩接近度（权重 25%）：线性相对误差
+  const dynMatch = (() => {
+    const a = Math.max(ref.dynamicRatio, 0.01), b = Math.max(cand.dynamicRatio, 0.01);
+    return Math.max(0, 1 - Math.abs(a - b) / Math.max(a, b));
+  })();
+
+  return Math.round((typeMatch * 0.4 + thdMatch * 0.35 + dynMatch * 0.25) * 100);
+}

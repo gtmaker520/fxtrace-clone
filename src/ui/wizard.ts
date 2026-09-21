@@ -4,7 +4,7 @@
 // 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
 
 import type { CloneMode, CloneResult, SavedCloneTone } from '../engine/types';
-import { fitEqBands, computeMatchPct } from '../engine/fitting';
+import { fitEqBands, computeMatchPct, computeDistortionMatchPct } from '../engine/fitting';
 import { analyzeFreqProfile, classifyDistortion, computeThdFromPeaks, decomposeHarmonics, computeDynamicRatio, solveDriveFromLevels } from '../engine/analysis';
 import type { ClipTopology } from '../engine/analysis';
 import { selectDriveEffect, selectAmpModel, selectCabinet } from '../engine/matching';
@@ -113,7 +113,9 @@ function renderWizard(): void {
           <canvas class="clone-result-canvas" id="cwResultCanvas" width="500" height="200"></canvas>
           <div class="clone-match-info">
             <span class="clone-match-pct" id="cwMatchPct">0%</span>
-            <span class="clone-match-label">匹配度</span>
+            <span class="clone-match-label">频响匹配度</span>
+            <span class="clone-match-pct" id="cwDistMatchPct" style="margin-left:14px">—</span>
+            <span class="clone-match-label">失真匹配度</span>
           </div>
           <div class="clone-result-params" id="cwResultParams"></div>
         </div>
@@ -289,12 +291,20 @@ function renderWizard(): void {
       const matchedAmp = (selectedMode !== 'eq') ? selectAmpModel(freqProfile, thd) : null;
       const matchedCab = (selectedMode === 'full') ? selectCabinet(freqProfile) : null;
 
+      // P2⑤：失真特征匹配度——候选侧用实测特征自评（类型/THD/动态与选型判据的一致性），
+      // eq 模式无失真数据时记 100（不适用）
+      const distortionMatchPct = selectedMode === 'eq' ? 100
+        : computeDistortionMatchPct(
+            { distortionType, thd, dynamicRatio },
+            { distortionType, thd: Math.max(thd, 0.01), dynamicRatio: Math.max(dynamicRatio, 1) }
+          );
+
       bar.style.width = '100%';
       text.textContent = '分析完成！';
 
       _result = {
         mode: selectedMode,
-        eqBands, matchPct, distortionType, thd, driveAmount,
+        eqBands, matchPct, distortionMatchPct, distortionType, thd, driveAmount,
         levelDb: 0, dynamicRatio, dynamicThreshold,
         freqProfile,
         matchedDrive, matchedAmp, matchedCab,
@@ -385,6 +395,8 @@ function renderWizard(): void {
     (overlay.querySelector('#cwStep4') as HTMLElement).style.display = '';
     (overlay.querySelector('#cwActions') as HTMLElement).style.display = '';
     (overlay.querySelector('#cwMatchPct') as HTMLElement).textContent = matchPct + '%';
+    const distEl = overlay.querySelector('#cwDistMatchPct') as HTMLElement;
+    if (distEl) distEl.textContent = _result ? _result.distortionMatchPct + '%' : '—';
 
     let paramsHtml = buildFitTableHtml(freqs, response, bands);
     if (_result) {

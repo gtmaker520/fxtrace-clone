@@ -5,6 +5,8 @@
 
 import { CURVE_BUILDERS, makeIdentityCurve } from './curves';
 import { getCabIR } from '../presets/cabinets';
+import { computeDriveGain } from '../engine/analysis';
+import { getLastInputRms } from './io';
 import type { WHModel } from '../engine/wh-model';
 
 /** 链上节点：一个单块 / 箱头 / 箱体 */
@@ -106,8 +108,12 @@ export class MiniFxChain {
       input, output, ws, preGain,
       bypassed: false,
       controls: new Map([
-        // 真实单块前级增益 20-60dB；dist=0.5 → ×14（≈23dB），麦克风弱信号也能深入削波区
-        ['drive', (v: number) => { preGain.gain.value = 1 + v * 26; ws.curve = builder(v, ctx.sampleRate) as unknown as Float32Array<ArrayBuffer>; }],
+        // 前级增益自适应：按信号检测时实测输入 RMS 计算（目标 2.5×过驱动），
+        // 替代固定系数——弱麦克风信号与线路输入都能正确进入削波区
+        ['drive', (v: number) => {
+          preGain.gain.value = computeDriveGain(getLastInputRms(), v);
+          ws.curve = builder(v, ctx.sampleRate) as unknown as Float32Array<ArrayBuffer>;
+        }],
         ['level', (v: number) => { output.gain.value = v * 2; }],
       ]),
     };
