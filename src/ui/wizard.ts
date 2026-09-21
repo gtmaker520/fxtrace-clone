@@ -9,6 +9,10 @@ import { analyzeFreqProfile, classifyDistortion, computeThdFromPeaks, decomposeH
 import type { ClipTopology } from '../engine/analysis';
 import { selectDriveEffect, selectAmpModel, selectCabinet } from '../engine/matching';
 import { getAudioContext, detectInputSignal, captureBaseline, captureSweepResponse, captureThd, captureThdMultiLevel, captureDynamicLevels } from '../audio/io';
+import { captureWHSweeps } from '../audio/wh-capture';
+import { fitStaticNonlinearity } from '../engine/wh-nonlinear';
+import { estimateWHLinearStages } from '../engine/wh-linear';
+import type { WHModel } from '../engine/wh-model';
 import { drawResponseChart, buildFitTableHtml } from './charts';
 import { cloneResultToTone, downloadTone } from '../io/tone-file';
 import type { SweepPeaks } from '../engine/measurement';
@@ -16,6 +20,7 @@ import type { SweepPeaks } from '../engine/measurement';
 let _modalEl: HTMLElement | null = null;
 let _onCloneSaved: ((tone: SavedCloneTone) => void) | null = null;
 let _onApply: ((result: CloneResult) => void) | null = null;
+let _onWHApply: ((model: WHModel) => void) | null = null;
 let _result: CloneResult | null = null;
 
 let _baseline: SweepPeaks | null = null;
@@ -26,6 +31,8 @@ let _recordTimer: ReturnType<typeof setInterval> | null = null;
 
 export function setOnCloneSaved(cb: (tone: SavedCloneTone) => void): void { _onCloneSaved = cb; }
 export function setOnApply(cb: (result: CloneResult) => void): void { _onApply = cb; }
+/** P3：W-H 真克隆结果回调（demo 端用 chain.loadWH 应用） */
+export function setOnWHApply(cb: (model: WHModel) => void): void { _onWHApply = cb; }
 
 export function showToast(msg: string, duration = 2000): void {
   const el = document.createElement('div');
@@ -113,6 +120,7 @@ function renderWizard(): void {
 
       <div class="clone-actions" id="cwActions" style="display:none">
         <button class="btn" id="cwReAnalyze">重新分析</button>
+        <button class="btn" id="cwWhBtn">W-H 真克隆</button>
         <button class="btn" id="cwExportBtn">导出音色文件</button>
         <button class="btn btn-primary" id="cwApplyBtn">应用到链路</button>
       </div>
@@ -303,6 +311,50 @@ function renderWizard(): void {
     if (!_result) return;
     _onApply?.(_result);
     closeWizard();
+  });
+
+  // P3：W-H 真克隆 —— 基于基线做多电平扫频，拟合 Linear→Static→Linear 模型并应用
+  overlay.querySelector('#cwWhBtn')!.addEventListener('click', async function (this: HTMLButtonElement) {
+    if (!_baseline) { showToast('基线未校准，请先执行第 1 步'); return; }
+    const btn = this as HTMLButtonElement;
+    btn.disabled = true;
+    const bar = overlay.querySelector('#cwProgressBar') as HTMLElement;
+    const text = overlay.querySelector('#cwProgressText') as HTMLElement;
+    (overlay.querySelector('#cwStep3') as HTMLElement).style.display = '';
+    try {
+      bar.style.width = '15%';
+      text.textContent = 'W-H: 多电平扫频采集（3 档，约 10s）...';
+      const cap = await captureWHSweeps();
+
+      bar.style.width = '55%';
+      text.textContent = 'W-H: 拟合静态非线性...';
+      await new Promise(r => setTimeout(r, 50));
+      const nl = fitStaticNonlinearity(cap);
+
+      bar.style.width = '75%';
+      text.textContent = 'W-H: 估计线性滤波器...';
+      await new Promise(r => setTimeout(r, 50));
+      const ctx = getAudioContext();
+      if (!ctx) throw new Error('音频上下文不可用');
+      const lin = estimateWHLinearStages(cap.sweeps, ctx.sampleRate);
+
+      const model: WHModel = {
+        preFilter: lin.pre.coeffs,
+        nonlinear: nl.curve,
+        postFilter: lin.post.coeffs,
+        inputGain: nl.inputGain,
+        outputGain: nl.outputGain,
+      };
+
+      bar.style.width = '100%';
+      text.textContent = `W-H 完成（非线性 RMSE ${nl.rmse.toFixed(3)}，滤波器 RMSE ${lin.pre.rmseDb.toFixed(1)}/${lin.post.rmseDb.toFixed(1)} dB）`;
+      showToast('W-H 模型已生成，应用到链路后可直接弹奏');
+      _onWHApply?.(model);
+    } catch (e) {
+      text.textContent = 'W-H 失败: ' + (e instanceof Error ? e.message : String(e));
+    } finally {
+      btn.disabled = false;
+    }
   });
 
   function showResult(freqs: Float32Array, response: Float32Array, bands: number[], matchPct: number): void {

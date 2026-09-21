@@ -5,6 +5,7 @@
 // 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
 
 import { openCloneWizard, setOnApply, showToast } from '../src/ui/wizard';
+import { setOnWHApply } from '../src/ui/wizard';
 import { analyzeAudioSelection } from '../src/io/file-clone';
 import { drawResponseChart, buildFitTableHtml, drawWaveform } from '../src/ui/charts';
 import { cloneResultToTone, downloadTone, parseToneFile } from '../src/io/tone-file';
@@ -22,6 +23,15 @@ setOnApply((result) => {
   showToast(`已应用：${result.matchedDrive?.name ?? '无单块'} + ${result.matchedAmp?.name ?? '无箱头'} + ${result.matchedCab?.name ?? '无箱体'}，现在可以弹奏试听`);
 });
 document.getElementById('openWizardBtn')!.addEventListener('click', openCloneWizard);
+
+// P3：W-H 真克隆模型 → chain.loadWH 应用（pre-IIR → WaveShaper → post-IIR，立即可弹）
+setOnWHApply((model) => {
+  const ctx = getAudioContext();
+  if (!ctx) { showToast('音频上下文不可用'); return; }
+  if (!demoChain) demoChain = new MiniFxChain(ctx);
+  demoChain.loadWH(model);
+  showToast('W-H 真克隆模型已应用到链路，现在可以弹奏试听');
+});
 
 // ── 导入音色文件 → 一键恢复链路 ──
 const toneFileInput = document.getElementById('toneFileInput') as HTMLInputElement;
@@ -143,10 +153,14 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
 });
 
 // 播放选区
-playSelBtn.addEventListener('click', () => {
+playSelBtn.addEventListener('click', async () => {
   if (!audioBuffer) return;
   const ctx = getAudioContext();
   if (!ctx) return;
+  // 必须在用户手势中显式 resume（浏览器自动播放策略）
+  if (ctx.state === 'suspended') {
+    try { await ctx.resume(); } catch { /* ignore */ }
+  }
   if (playSource) { try { playSource.stop(); } catch { /* ignore */ } playSource = null; return; }
   const s = Math.min(selStart, selEnd), e = Math.max(selStart, selEnd);
   const src = ctx.createBufferSource();

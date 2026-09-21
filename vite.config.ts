@@ -3,13 +3,11 @@ import { resolve } from 'path';
 
 export default defineConfig({
   base: './',
+  root: 'demo',
   server: { port: 5180 },
   build: {
     target: 'es2020',
-    rollupOptions: {
-      input: resolve(__dirname, 'demo/index.html'),
-    },
-    outDir: 'dist',
+    outDir: '../dist',
     emptyOutDir: true,
   },
 });

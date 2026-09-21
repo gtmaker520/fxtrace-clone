@@ -5,6 +5,7 @@
 
 import { CURVE_BUILDERS, makeIdentityCurve } from './curves';
 import { getCabIR } from '../presets/cabinets';
+import type { WHModel } from '../engine/wh-model';
 
 /** 链上节点：一个单块 / 箱头 / 箱体 */
 export interface ChainNode {
@@ -198,6 +199,54 @@ export class MiniFxChain {
     // cab 永远接在 masterGain 之前、amp 之后
     this.insertNode(node, this._amp?.id);
     this._cab = node;
+    return node.id;
+  }
+
+  /**
+   * 加载 Wiener-Hammerstein 节点（P3 真克隆）：
+   * preFilter(IIR) → inputGain → WaveShaper(拟合曲线) → postFilter(IIR) → outputGain
+   * 占据 drive+amp 的位置（清掉已有 drive/amp），cab 可保留。
+   */
+  loadWH(model: WHModel): string | null {
+    // WH 自带完整音色，清掉已有 drive/amp
+    for (const n of this.nodes.filter(n => n.kind === 'drive' || n.kind === 'amp')) {
+      this.removeNode(n.id);
+    }
+    const ctx = this.ctx;
+    const input = ctx.createGain();
+    const inGain = ctx.createGain();
+    inGain.gain.value = model.inputGain;
+
+    // IIRFilterNode 承载任意 Biquad 系数（Web Audio 的 BiquadFilterNode 不接受自定义系数）
+    const pre = ctx.createIIRFilter([model.preFilter.b0, model.preFilter.b1, model.preFilter.b2], [model.preFilter.a0, model.preFilter.a1, model.preFilter.a2]);
+    const ws = ctx.createWaveShaper();
+    ws.curve = model.nonlinear as unknown as Float32Array<ArrayBuffer>;
+    const post = ctx.createIIRFilter([model.postFilter.b0, model.postFilter.b1, model.postFilter.b2], [model.postFilter.a0, model.postFilter.a1, model.postFilter.a2]);
+    const outGain = ctx.createGain();
+    outGain.gain.value = model.outputGain;
+    const output = ctx.createGain();
+
+    input.connect(inGain);
+    inGain.connect(pre);
+    pre.connect(ws);
+    ws.connect(post);
+    post.connect(outGain);
+    outGain.connect(output);
+
+    const node: ChainNode = {
+      id: this.nextId(),
+      kind: 'amp',
+      presetId: 'whModel',
+      input, output, ws,
+      bypassed: false,
+      controls: new Map<string, (value: never) => void>([
+        ['input_gain', ((v: number) => { inGain.gain.value = v; }) as never],
+        ['output_gain', ((v: number) => { outGain.gain.value = v; }) as never],
+        ['curve', ((c: Float32Array) => { ws.curve = c as unknown as Float32Array<ArrayBuffer>; }) as never],
+      ]) as ChainNode['controls'],
+    };
+    this.insertNode(node, this.nodes[0]?.id);
+    this._amp = node;
     return node.id;
   }
 

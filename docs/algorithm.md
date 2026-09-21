@@ -190,7 +190,40 @@ thd ≈ 0.5·S(hfRatio) + 0.3·S(tilt) + 0.2·S(crest)
 
 `rawResponse` 的意义：旧格式只留 7 个拟合值，算法升级后旧音色**无法重算**；v2 起保存原始频响，任何新算法都可以离线重算全部产物。导入函数兼容无 `rawResponse` 的旧 v1 文件。
 
-## 8. 单元测试策略（tests/）
+## 8. Wiener-Hammerstein 真克隆（P3，engine/wh-model.ts + wh-nonlinear.ts + wh-linear.ts）
+
+W-H 模型把设备拆为三段：**线性 → 静态非线性 → 线性**，对标 ToneX/NAM 的简化版。产物不再是"风格归类"，而是可直接弹奏的波形级模型。
+
+### 8.1 数据采集（audio/wh-capture.ts）
+
+`captureWHSweeps`：3 档输入电平（约 -10/0/+6dB）各做一次扫频（共用同一条基线校准），同时测各档 440Hz THD。低电平档 ≈ 设备线性区响应，高电平档 ≈ 非线性工作区响应。
+
+### 8.2 静态非线性拟合（engine/wh-nonlinear.ts）
+
+核心物理关系：**输出幅度 = 增益(u) × 输入幅度**（y(u)=gain(u)·u，零输入零输出）。
+
+1. 取 1kHz 频点，从各档频响读出增益（dB）→ 线性幅度；
+2. 输入电平归一化到 [0,1]，构造数据点 `(u, gain(u)·u)`；
+3. 分段三次 Hermite 插值（奇对称：f(-x) = -f(x)）生成 4097 点 WaveShaper 曲线；
+4. 归一化到 [-1,1]，RMSE 按同一尺度报告。
+
+### 8.3 线性部分估计（engine/wh-linear.ts）
+
+- **pre-filter**：最低电平档频响（线性区），用贪心三点法拟合单个 peaking Biquad（RBJ cookbook）——峰/谷频率与增益直接读出，Q 由半峰宽估计；
+- **post-filter**：高电平频响 − 低电平频响（dB 域差），同法拟合——捕获非线性工作区引起的音调偏移；
+- 每级报告 RMSE（dB）。
+
+### 8.4 链路应用（audio/chain.ts `loadWH`）
+
+```
+input → inputGain → IIRFilter(pre) → WaveShaper(拟合曲线) → IIRFilter(post) → outputGain
+```
+
+Web Audio 的 `BiquadFilterNode` 不接受自定义系数，用 `IIRFilterNode` 承载。WH 节点占据 drive+amp 的位置（cab 可保留），应用后立即可弹。wizard 的"W-H 真克隆"按钮在基线校准后可用。
+
+**已知局限**：静态非线性是**无记忆**模型——捕获不了扬声器的时域暂态、变压器磁滞、管级动态偏置；单 peaking Biquad 对复杂频响（多峰）拟合精度有限。这些是 W-H 模型类方法的共同边界，继续提升需要 Volterra 级或神经建模。
+
+## 9. 单元测试策略（tests/）
 
 全部用合成数据，不需要音频硬件：
 

@@ -34,15 +34,23 @@ wizard full 模式已接入。详见 [algorithm.md §2.2](algorithm.md)。
 （输入调制范围 19.1dB / 输出实测范围），单测覆盖直通≈1 与 4:1 压缩≈4
 两个标定点。详见 [algorithm.md §3](algorithm.md)。
 
-## P3 "真克隆"路线（长期）
+## P3 "真克隆"路线（基础版已完成）
 
-### Wiener-Hammerstein 模型
+### Wiener-Hammerstein 模型 ✅（基础版）
 
-拟合非线性传递函数（线性动态 → 静态非线性 → 线性动态），对标 ToneX/NAM 的简化版：
+已实现 Linear → Static Nonlinearity → Linear 三段模型（对标 ToneX/NAM 简化版）：
 
-- 线性部分：现有扫频频响已可估计
-- 非线性部分：多电平扫频（P2 ②）提供不同工作点的增益数据
-- 产物从"风格归类"升级为"波形级建模"——失真类相似度从 ~50% 有望进入 80%+
+- **采集**：3 档电平扫频（共用基线校准）+ 各档 THD（`audio/wh-capture.ts`）
+- **非线性**：y(u)=gain(u)·u 数据点 → 奇对称三次 Hermite 插值 → 4097 点 WaveShaper 曲线（`engine/wh-nonlinear.ts`）
+- **线性**：低电平档拟合 pre-filter、高低电平差拟合 post-filter（单 peaking Biquad，RBJ cookbook，`engine/wh-linear.ts`）
+- **应用**：`chain.loadWH` — IIRFilter(pre) → WaveShaper → IIRFilter(post)，立即可弹；wizard 增加"W-H 真克隆"按钮（基线校准后可用）
+
+详见 [algorithm.md §8](algorithm.md)。失真类相似度从 ~50%（特征匹配）有望进入 80%+（待真实硬件验收）。
+
+**后续深化方向**（当前基础版的已知边界）：
+- [ ] 有记忆非线性：Volterra 级 / 神经网络（捕获扬声器暂态、变压器磁滞、动态偏置）
+- [ ] 多峰频响的更精细线性拟合（多个 Biquad 级联或 FIR）
+- [ ] 拟合闭环校验：应用 WH 模型后反向测量，与目标响应比对自动微调
 
 ## 其他
 

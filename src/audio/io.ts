@@ -101,7 +101,7 @@ async function closeMic(stream: MediaStream, ...nodes: Array<AudioNode | null>):
 }
 
 /** 播放缓冲到输出，同时用分析器峰值采集输入（每次采样取各 bin 峰值） */
-async function playAndCapturePeaks(ctx: AudioContext, buf: AudioBuffer, fftSize: number, smoothing: number): Promise<Float32Array> {
+export async function playAndCapturePeaks(ctx: AudioContext, buf: AudioBuffer, fftSize: number, smoothing: number): Promise<Float32Array> {
   const { src: micSrc, stream } = await openMic(ctx);
   const anl = ctx.createAnalyser();
   anl.fftSize = fftSize;
