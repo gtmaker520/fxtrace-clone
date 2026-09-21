@@ -9,9 +9,66 @@ import { setOnWHApply } from '../src/ui/wizard';
 import { analyzeAudioSelection } from '../src/io/file-clone';
 import { drawResponseChart, buildFitTableHtml, drawWaveform } from '../src/ui/charts';
 import { cloneResultToTone, downloadTone, parseToneFile } from '../src/io/tone-file';
-import { MiniFxChain, applyTone } from '../src/index';
+import { MiniFxChain, applyTone, CAB_VARIANTS } from '../src/index';
 import { getAudioContext, startMonitor, stopMonitor, isMonitoring } from '../src/audio/io';
 import type { CloneMode, CloneResult } from '../src/engine/types';
+
+// ── 音色微调面板：换箱体 / 调失真度 / 箱头增益 / 单块电平 ──
+const tweakPanel = document.getElementById('tweakPanel')!;
+const tweakCab = document.getElementById('tweakCab') as HTMLSelectElement;
+const tweakDist = document.getElementById('tweakDist') as HTMLInputElement;
+const tweakGain = document.getElementById('tweakGain') as HTMLInputElement;
+const tweakLevel = document.getElementById('tweakLevel') as HTMLInputElement;
+const tweakDistVal = document.getElementById('tweakDistVal')!;
+const tweakGainVal = document.getElementById('tweakGainVal')!;
+const tweakLevelVal = document.getElementById('tweakLevelVal')!;
+
+for (const v of CAB_VARIANTS) {
+  const opt = document.createElement('option');
+  opt.value = String(v.id);
+  opt.textContent = `${v.name} (${v.short})`;
+  tweakCab.appendChild(opt);
+}
+
+/** 应用/导入后把音色参数同步到面板显示 */
+function syncTweakPanel(result: CloneResult): void {
+  tweakPanel.classList.remove('section-hidden');
+  if (result.matchedCab) tweakCab.value = String(result.matchedCab.variant);
+  if (result.matchedDrive) {
+    tweakDist.value = String(Math.round(result.matchedDrive.params.dist ?? 50));
+    tweakDistVal.textContent = tweakDist.value;
+    tweakLevel.value = String(Math.round((result.matchedDrive.params.level ?? 0.3) * 100));
+    tweakLevelVal.textContent = tweakLevel.value;
+  }
+  if (result.matchedAmp) {
+    tweakGain.value = String(Math.round(result.matchedAmp.params.gain ?? 35));
+    tweakGainVal.textContent = tweakGain.value;
+  }
+}
+
+function findNodeId(kind: 'drive' | 'amp' | 'cab'): string | null {
+  return demoChain?.nodesSnapshot.find(n => n.kind === kind)?.id ?? null;
+}
+
+tweakCab.addEventListener('change', () => {
+  const id = findNodeId('cab');
+  if (id && demoChain) demoChain.setParam(id, 'variant', Number(tweakCab.value));
+});
+tweakDist.addEventListener('input', () => {
+  tweakDistVal.textContent = tweakDist.value;
+  const id = findNodeId('drive');
+  if (id && demoChain) demoChain.setParam(id, 'drive', Number(tweakDist.value) / 100);
+});
+tweakGain.addEventListener('input', () => {
+  tweakGainVal.textContent = tweakGain.value;
+  const id = findNodeId('amp');
+  if (id && demoChain) demoChain.setParam(id, 'gain', Number(tweakGain.value));
+});
+tweakLevel.addEventListener('input', () => {
+  tweakLevelVal.textContent = tweakLevel.value;
+  const id = findNodeId('drive');
+  if (id && demoChain) demoChain.setParam(id, 'level', Number(tweakLevel.value) / 100);
+});
 
 // ── 路径 A：设备克隆向导 ──
 let demoChain: MiniFxChain | null = null;
@@ -41,6 +98,7 @@ async function applyAndMonitor(result: CloneResult, label: string): Promise<void
   const chain = await ensureChainAndMonitor();
   if (!chain) return;
   applyTone(chain, result);
+  syncTweakPanel(result);
   showToast(`${label}已应用到链路${isMonitoring() ? '，正在监听——现在可以弹奏' : ''}`);
 }
 
@@ -84,6 +142,7 @@ toneFileInput.addEventListener('change', async () => {
     if (!ctx) { showToast('音频上下文不可用'); return; }
     if (!demoChain) demoChain = new MiniFxChain(ctx);
     applyTone(demoChain, tone as unknown as CloneResult);
+    syncTweakPanel(tone as unknown as CloneResult);
     const info = document.getElementById('importToneInfo')!;
     info.textContent = `✓ ${tone.name}（匹配度 ${tone.matchPct}%）${legacy ? ' · 旧格式 v1，无原始频响' : ''}`;
     showToast(`音色「${tone.name}」已应用到链路${legacy ? '（旧格式 v1，可重新克隆升级到 v2）' : ''}`);
