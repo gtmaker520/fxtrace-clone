@@ -80,7 +80,7 @@ function renderWizard(): void {
         <div class="clone-step-title"><span class="clone-step-num">1</span> 连接与校准</div>
         <div class="clone-connect-box">
           <div class="clone-connect-icon" id="cwSignalIcon">○</div>
-          <div class="clone-connect-text" id="cwConnectText">请将吉他 → 被测单块 → 声卡输入 连接好<br><small>先<b>不接</b>被测设备（直通）做基线校准</small></div>
+          <div class="clone-connect-text" id="cwConnectText">请将吉他 → 被测单块 → 声卡输入 连接好<br><small>先<b>不接</b>被测设备（直通）做基线校准<br>提示：检测/校准/分析时会从扬声器播放约 2 秒的"由低到高"测试音，属于正常现象；<b>两次测量之间请勿改变系统音量</b>，否则基线失准</small></div>
         </div>
         <div class="clone-detect-row">
           <select id="cwDeviceSel" style="flex:1; padding:6px; background:#161a2e; color:#ccc; border:1px solid #2a2f4a; border-radius:6px; font-size:13px"></select>

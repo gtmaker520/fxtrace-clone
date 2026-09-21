@@ -23,6 +23,11 @@
     .mode-btn { padding: 10px 16px; border: 1px solid #2a2f4a; border-radius: 8px; background: #161a2e; color: #aaa; font-size: 13px; cursor: pointer; text-align: center; line-height: 1.5; }
     .mode-btn small { display: block; font-size: 11px; color: #666; }
     .mode-btn.active { border-color: #26c6da; color: #26c6da; }
+    /* 克隆向导内的模式按钮（wizard.ts 使用 clone-mode-btn 类） */
+    .clone-mode-btn { padding: 10px 16px; border: 1px solid #2a2f4a; border-radius: 8px; background: #161a2e; color: #aaa; font-size: 13px; cursor: pointer; text-align: center; line-height: 1.5; }
+    .clone-mode-btn small { display: block; font-size: 11px; color: #666; }
+    .clone-mode-btn.active { border-color: #26c6da; color: #26c6da; background: #0f2a2a; }
+    .clone-mode-row { display: flex; gap: 10px; flex-wrap: wrap; }
     .progress-wrap { background: #0d0f1a; border-radius: 4px; height: 8px; overflow: hidden; margin: 10px 0 6px; }
     .progress-bar { height: 100%; width: 0%; background: #26c6da; transition: width .3s; }
     .progress-text { font-size: 12px; color: #999; min-height: 18px; }
@@ -54,7 +59,6 @@
     .clone-progress-wrap { background: #0d0f1a; border-radius: 4px; height: 8px; overflow: hidden; margin-bottom: 6px; }
     .clone-progress-bar { height: 100%; width: 0%; background: #26c6da; transition: width .3s; }
     .clone-progress-text { font-size: 12px; color: #999; min-height: 18px; }
-    .clone-mode-row { display: flex; gap: 10px; }
     .clone-gain-hint { font-size: 12px; color: #999; margin-bottom: 8px; }
     .clone-result-area { margin-top: 6px; }
     .clone-result-canvas { width: 100%; height: 200px; background: #0d0f1a; border-radius: 6px; }
