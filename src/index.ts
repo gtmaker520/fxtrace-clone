@@ -40,7 +40,13 @@ export function applyTone(chain: MiniFxChain, result: CloneResult): void {
   chain.clear();
   if (result.matchedDrive) {
     const id = chain.loadDrive(result.matchedDrive.presetId);
-    if (id) for (const [k, v] of Object.entries(result.matchedDrive.params)) chain.setParam(id, k, v);
+    if (id) {
+      for (const [k, v] of Object.entries(result.matchedDrive.params)) {
+        // 预设参数键 dist(0-100) → 链路控制键 drive(0-1)；其余键透传
+        if (k === 'dist') chain.setParam(id, 'drive', Number(v) / 100);
+        else chain.setParam(id, k, v);
+      }
+    }
   }
   if (result.matchedAmp) {
     const id = chain.loadAmp();
