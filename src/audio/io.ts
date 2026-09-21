@@ -8,9 +8,10 @@ import type { SweepPeaks } from '../engine/measurement';
 
 /**
  * 离线渲染 20Hz→20kHz 指数扫频缓冲（供回放经被测设备采集）。
+ * amplitude 控制扫频电平（P2② 多电平扫频用）。
  * WebAudio 依赖位于 audio 层，engine 只保留参数与纯逻辑。
  */
-export async function renderSweepBuffer(ctx: BaseAudioContext): Promise<AudioBuffer> {
+export async function renderSweepBuffer(ctx: BaseAudioContext, amplitude: number = SWEEP_GAIN): Promise<AudioBuffer> {
   const sr = ctx.sampleRate;
   const bufLen = Math.floor(sr * SWEEP_DURATION);
   const offline = new OfflineAudioContext(1, bufLen + SWEEP_FFT, sr);
@@ -19,7 +20,7 @@ export async function renderSweepBuffer(ctx: BaseAudioContext): Promise<AudioBuf
   osc.frequency.setValueAtTime(FREQ_MIN, 0);
   osc.frequency.exponentialRampToValueAtTime(FREQ_MAX, SWEEP_DURATION);
   const gain = offline.createGain();
-  gain.gain.setValueAtTime(SWEEP_GAIN, 0);
+  gain.gain.setValueAtTime(amplitude, 0);
   osc.connect(gain);
   gain.connect(offline.destination);
   osc.start(0);
@@ -149,11 +150,11 @@ export async function captureSweepResponse(ctx: AudioContext, baseline: SweepPea
   return calibrateResponse(measured, baseline);
 }
 
-/** THD 测量：播放 440Hz 正弦（1s），采集输入，计算 2-10 次谐波 */
-export async function captureThd(
+/** THD 测量：播放 440Hz 正弦（1s），采集输入，回调解析峰值谱（THD 或谐波分解） */
+export async function captureThd<T>(
   ctx: AudioContext,
-  computeThd: (peak: Float32Array, sampleRate: number, fftSize: number, freq: number) => number
-): Promise<number> {
+  analyze: (peak: Float32Array, sampleRate: number, fftSize: number, freq: number) => T
+): Promise<T> {
   const sr = ctx.sampleRate;
   const dur = 1;
   const freq = 440;
@@ -172,7 +173,43 @@ export async function captureThd(
   const buf = await offline.startRendering();
 
   const peak = await playAndCapturePeaks(ctx, buf, 4096, 0);
-  return computeThd(peak, sr, 4096, freq);
+  return analyze(peak, sr, 4096, freq);
+}
+
+/** 多电平 THD 采集的默认激励电平档位（P2②） */
+export const DRIVE_LEVELS = [0.08, 0.16, 0.32];
+
+/**
+ * P2② 多电平扫频 THD 采集：对每档电平播放 440Hz 正弦并测量 THD，
+ * 返回与 DRIVE_LEVELS 一一对应的 THD 数组，供 solveDriveFromLevels 反解 drive。
+ */
+export async function captureThdMultiLevel(
+  ctx: AudioContext,
+  computeThd: (peak: Float32Array, sampleRate: number, fftSize: number, freq: number) => number,
+  levels: number[] = DRIVE_LEVELS
+): Promise<number[]> {
+  const sr = ctx.sampleRate;
+  const dur = 1;
+  const freq = 440;
+  const len = Math.floor(sr * dur);
+  const thds: number[] = [];
+
+  for (const amp of levels) {
+    const offline = new OfflineAudioContext(1, len, sr);
+    const osc = offline.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const g = offline.createGain();
+    g.gain.value = amp;
+    osc.connect(g);
+    g.connect(offline.destination);
+    osc.start(0);
+    osc.stop(dur);
+    const buf = await offline.startRendering();
+    const peak = await playAndCapturePeaks(ctx, buf, 4096, 0);
+    thds.push(computeThd(peak, sr, 4096, freq));
+  }
+  return thds;
 }
 
 /** 动态分析：生成变幅噪声播放 2s，分段采集 RMS，交给纯逻辑计算压缩比 */

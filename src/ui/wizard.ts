@@ -5,9 +5,10 @@
 
 import type { CloneMode, CloneResult, SavedCloneTone } from '../engine/types';
 import { fitEqBands, computeMatchPct } from '../engine/fitting';
-import { analyzeFreqProfile, classifyDistortion, computeThdFromPeaks, computeDynamicRatio } from '../engine/analysis';
+import { analyzeFreqProfile, classifyDistortion, computeThdFromPeaks, decomposeHarmonics, computeDynamicRatio, solveDriveFromLevels } from '../engine/analysis';
+import type { ClipTopology } from '../engine/analysis';
 import { selectDriveEffect, selectAmpModel, selectCabinet } from '../engine/matching';
-import { getAudioContext, detectInputSignal, captureBaseline, captureSweepResponse, captureThd, captureDynamicLevels } from '../audio/io';
+import { getAudioContext, detectInputSignal, captureBaseline, captureSweepResponse, captureThd, captureThdMultiLevel, captureDynamicLevels } from '../audio/io';
 import { drawResponseChart, buildFitTableHtml } from './charts';
 import { cloneResultToTone, downloadTone } from '../io/tone-file';
 import type { SweepPeaks } from '../engine/measurement';
@@ -200,6 +201,7 @@ function renderWizard(): void {
       const freqProfile = analyzeFreqProfile(sweep.freqs, sweep.response);
 
       let distortionType: 'soft' | 'hard' | 'none' = 'none';
+      let topology: ClipTopology = 'none';
       let driveAmount = 0;
       let thd = 0;
       let dynamicRatio = 1;
@@ -207,11 +209,29 @@ function renderWizard(): void {
 
       if (selectedMode === 'dist' || selectedMode === 'full') {
         bar.style.width = '55%';
-        text.textContent = '分析谐波失真...';
+        text.textContent = '分析谐波失真（含阶次分解）...';
         await new Promise(r => setTimeout(r, 100));
-        thd = await captureThd(ctx, computeThdFromPeaks);
+        const hd = await captureThd(ctx, decomposeHarmonics);
+        thd = hd.thd;
+        topology = hd.topology;
         distortionType = classifyDistortion(thd);
-        driveAmount = 0; // I/O 路径无法直接反解增益（P2 多电平扫频改进）
+
+        if (selectedMode === 'full') {
+          // P2②：full 模式下用 3 档多电平扫频反解 drive
+          bar.style.width = '62%';
+          text.textContent = '多电平扫频反解 drive...';
+          await new Promise(r => setTimeout(r, 100));
+          const thdLevels = await captureThdMultiLevel(ctx, computeThdFromPeaks);
+          const rev = solveDriveFromLevels([0.08, 0.16, 0.32], thdLevels);
+          if (rev.ok) {
+            driveAmount = rev.drive;
+            thd = thdLevels[thdLevels.length - 1]; // 用最高档 THD 作为失真量（更接近实际演奏电平）
+            distortionType = classifyDistortion(thd);
+            topology = 'none'; // 反解路径用传统查表（分解谱来自单档测量，与多电平档不对应）
+          }
+        } else {
+          driveAmount = 0; // dist 模式保持单档：I/O 路径无法直接反解增益
+        }
       }
 
       if (selectedMode === 'full') {
@@ -228,7 +248,12 @@ function renderWizard(): void {
       text.textContent = '匹配效果器...';
       await new Promise(r => setTimeout(r, 100));
 
-      const matchedDrive = (selectedMode !== 'eq') ? selectDriveEffect(thd, distortionType, driveAmount, freqProfile) : null;
+      const matchedDrive = (selectedMode !== 'eq') ? selectDriveEffect(thd, distortionType, driveAmount, freqProfile, topology) : null;
+      // P2②：反解成功时把 drive 写入选型参数（overdrive/bd2/klon 类为 drive/gain，硬削波类为 dist）
+      if (matchedDrive && driveAmount > 0) {
+        const driveKey = ['drive', 'gain', 'dist'].find(k => k in matchedDrive.params);
+        if (driveKey) matchedDrive.params[driveKey] = Math.round(driveAmount * 100) / 100;
+      }
       const matchedAmp = (selectedMode !== 'eq') ? selectAmpModel(freqProfile, thd) : null;
       const matchedCab = (selectedMode === 'full') ? selectCabinet(freqProfile) : null;
 

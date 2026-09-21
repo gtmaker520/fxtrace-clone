@@ -4,12 +4,30 @@
 // 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
 
 import type { FreqProfile, MatchedEffect, MatchedAmp, MatchedCab } from './types';
+import type { ClipTopology } from './analysis';
 
-// ── 失真效果器匹配：根据 THD、削波类型、增益量选择最佳单块 ──
-export function selectDriveEffect(thd: number, type: 'soft' | 'hard' | 'none', _driveDb: number, fp: FreqProfile): MatchedEffect | null {
+/**
+ * ── 失真效果器匹配：根据 THD、削波类型、增益量选择最佳单块 ──
+ * P2①：可选传入削波拓扑（谐波阶次分解结果）——
+ *   even（偶次/非对称削波）优先选非对称电路单块（过载/蓝色过载）；
+ *   odd（奇次/对称削波）优先选对称电路单块（透明过载/运放失真）。
+ * 不传时保持原有行为（向后兼容）。
+ */
+export function selectDriveEffect(thd: number, type: 'soft' | 'hard' | 'none', _driveDb: number, fp: FreqProfile, topology: ClipTopology = 'none'): MatchedEffect | null {
   if (thd < 0.01 || type === 'none') return null;
 
   if (type === 'soft') {
+    // 拓扑已知时按电路对称性选型；未知时按原 THD 查表
+    if (topology === 'even') {
+      // 非对称削波（2f 强）：TS 风格软削波
+      if (thd < 0.08) return { presetId: 'overdrive', name: '过载', params: { drive: Math.min(0.5, thd * 6), tone: 0.5, level: 0.35 } };
+      return { presetId: 'bd2', name: '蓝色过载', params: { drive: Math.min(0.6, 0.35 + thd), tone: 0.5, level: 0.35 } };
+    }
+    if (topology === 'odd') {
+      // 对称削波（3f 强）：对称二极管/运放，中频透明
+      const gain = Math.min(0.6, 0.35 + (thd - 0.1) * 2);
+      return { presetId: 'klon', name: '黄色过载', params: { gain: Math.max(0.15, gain), treble: 0.5, output: 0.35 } };
+    }
     if (thd < 0.04) {
       return { presetId: 'overdrive', name: '过载', params: { drive: 0.15, tone: 0.5, level: 0.35 } };
     }
@@ -27,6 +45,15 @@ export function selectDriveEffect(thd: number, type: 'soft' | 'hard' | 'none', _
   }
 
   // hard clip — EQ 全部归箱头管，单块只提供失真+音量
+  // 拓扑已知时：even 优先二极管对地硬削波（失真/重金属），odd 优先运放对称削波（运放失真/电锯）
+  if (topology === 'odd') {
+    if (thd < 0.35) return { presetId: 'rat', name: '运放失真', params: { dist: 0.45, filter: 0.5, level: 0.35 } };
+    return { presetId: 'chainsaw', name: '电锯', params: { dist: Math.min(0.85, 0.5 + thd * 0.5), low: 0, high: 0, mode: 0, presence: 0, level: 0.3 } };
+  }
+  if (topology === 'even') {
+    if (thd < 0.35) return { presetId: 'distortion', name: '失真', params: { dist: Math.min(0.8, thd * 2), tone: 0.5, level: 0.35 } };
+    return { presetId: 'metal', name: '重金属', params: { dist: 50, low: 0, mid: 0, mid_freq: 800, high: 0, presence: 0, level: 0.3 } };
+  }
   if (thd < 0.2) {
     return { presetId: 'distortion', name: '失真', params: { dist: 0.35, tone: 0.5, level: 0.35 } };
   }

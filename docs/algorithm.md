@@ -38,19 +38,53 @@ THD = sqrt(Σ_{h=2..10} A(h·440)²) / A(440)
   - THD > 0.01 → **软削波**
   - 否则 → 无失真
 
-**已知局限**：THD 是一个标量，无法区分偶次/奇次谐波结构（TS 风与 RAT 风可能 THD 相同）。→ 见 roadmap ①。
+### 2.1 谐波阶次分解（P2① 已实现）
+
+THD 是标量，无法区分削波拓扑——`decomposeHarmonics` 按 2f/3f/4f… 分解峰值谱：
+
+```
+evenRatio = Σ偶次能量 / Σ全部谐波能量（2-10 次）
+topology  = evenRatio > 0.6 → even（非对称削波，2f 强 → TS/Fender 风）
+            evenRatio < 0.4 → odd（对称削波，3f 强 → RAT/Mesa 风）
+            中间带 → even（单块更常见的拓扑）
+```
+
+`selectDriveEffect` 接受可选 `topology` 参数：已知拓扑时按电路对称性选型
+（even 软削波→过载/蓝色过载，odd 软削波→透明过载；odd 硬削波→运放失真/电锯，
+even 硬削波→失真/重金属），未知时保持原 THD 查表。谐波 bin 提取取容差内
+**幅度最大**的 bin，对邻 bin 噪声底健壮。
+
+### 2.2 多电平扫频反解 drive（P2② 已实现）
+
+单档 THD 无法反解前级增益（"drive 真实反解"曾是硬编码 driveDb=0 的放弃路径）。
+`captureThdMultiLevel`（audio/io.ts）用 3 档递增电平（0.08/0.16/0.32，约 ±12dB）
+各测一次 THD，`solveDriveFromLevels`（纯逻辑）用增长曲线反解：
+
+```
+growth = thd(最高档) / max(thd(最低档), 1e-4)
+drive  = clamp(log2(growth) / 4, 0, 1)
+```
+
+物理依据：线性系统的 THD 与激励电平无关（growth≈1 → 无法反解，ok=false）；
+高 drive 设备电平翻倍时更快进入削波区，THD 大幅上升——growth=4 → drive≈0.5，
+growth=16 → drive=1。growth<1.5 视为电平无关，不反解。
+wizard 在 full 模式下启用：反解成功时把 drive 写入选型参数
+（drive/gain/dist 键），并用最高档 THD 作为失真量（更接近实际演奏电平）。
 
 ## 3. 动态分析（engine/analysis.ts `computeDynamicRatio`）
 
 - 激励：变幅噪声（幅度按 0.5Hz 正弦起伏），2s。
-- 分 40 帧采集 RMS，取最高 10 帧与最低 10 帧的均值比：
+- 分 40 帧采集 RMS，取最高 10 帧与最低 10 帧的均值比得到**输出**动态范围。
+- P2④ 物理映射：输入激励的调制范围是已知的（幅度 0.3×(1±0.8)，约 19dB），压缩比 = 输入范围 / 输出范围：
 
 ```
-动态范围(dB) = 20·log10(avgTop / avgBot)
-压缩比 = clamp(1 + 动态范围/6, 1, 10)
+INPUT_RANGE_DB = 20·log10(1.8/0.2) ≈ 19.1dB
+outRange(dB)   = 20·log10(avgTop / avgBot)
+压缩比         = clamp(INPUT_RANGE_DB / outRange, 1, 20)
 ```
 
-**已知局限**：dB 范围到压缩比是线性映射，非常粗糙。→ 见 roadmap ②。
+直通设备输出范围≈输入范围 → 压缩比≈1；输出被压到 1/4 → 压缩比≈4。
+替代了原 "1 + range/6" 经验线性映射（单测覆盖直通与 4:1 两个标定点）。
 
 ## 4. EQ 拟合（engine/fitting.ts）
 
@@ -70,14 +104,16 @@ bands[b] = Σ w_i · normResp_i / Σ w_i,   w_i = exp(−½·((ln f_i − ln f_b
 
 ### 4.2 匹配度
 
-用拟合出的 bands 重建每个频点的预测值，与实际响应比较：
+用拟合出的 bands 重建每个频点的预测值，与实际响应比较。P2③ 起分母改为**相对误差**——用响应自身的动态范围（2%-98% 分位峰-峰）归一化，替代原硬编码 36dB：
 
 ```
 avgErr = mean(|normResp_i − predict(f_i)|)
-matchPct = clamp(100 − avgErr/36 × 100, 0, 100)
+denom   = max(6, p98(normResp) − p2(normResp))   // dB
+matchPct = clamp(100 − avgErr/denom × 100, 0, 100)
 ```
 
-**已知局限**：分母 36dB 是硬编码，不随信号动态调整。→ 见 roadmap ③。
+频响越平缓（动态范围小），同样的绝对误差扣分越多——匹配度在不同设备间可比。
+下限 6dB 防止近似平坦的响应把微小误差放大成 0 分。
 
 ## 5. 选型引擎（engine/matching.ts）
 
@@ -158,7 +194,9 @@ thd ≈ 0.5·S(hfRatio) + 0.3·S(tilt) + 0.2·S(crest)
 
 全部用合成数据，不需要音频硬件：
 
-- 用已知 bands **正向生成**频响曲线，验证拟合能以平滑误差内恢复、匹配度 >95%；
-- 平坦曲线匹配度 ≈100%；
+- 用已知 bands **正向生成**频响曲线，验证拟合能以平滑误差内恢复（P2③ 相对误差度量下 >90%）；
+- 平坦曲线匹配度 ≈100%；相对误差区分度：平缓频响与尖锐频响同等误差下分数不同；
 - 基线校准：构造已知基线/测量对，验证差值精确；
-- THD 分类阈值、选型引擎分支覆盖。
+- THD 分类阈值、削波拓扑分解（偶次/奇次合成谱）、选型引擎分支覆盖；
+- 压缩比物理映射：直通（≈1）与 4:1 压缩（≈4）两个标定点；
+- 多电平反解：线性设备 ok=false、4 倍增长→0.5、16 倍→1、数据不足→false。

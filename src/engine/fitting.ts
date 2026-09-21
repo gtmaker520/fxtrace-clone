@@ -52,6 +52,7 @@ export function computeMatchPct(freqs: Float32Array, response: Float32Array, ban
 
   let totalErr = 0;
   let count = 0;
+  const normVals: number[] = [];
   for (let i = 0; i < freqs.length; i++) {
     const logF = Math.log(freqs[i]);
     let predicted = 0;
@@ -65,12 +66,20 @@ export function computeMatchPct(freqs: Float32Array, response: Float32Array, ban
     }
     if (weightSum > 0) predicted /= weightSum;
     const normR = response[i] - responseMean;
+    normVals.push(normR);
     const err = Math.abs(normR - predicted);
     totalErr += err;
     count++;
   }
-  const avgErr = count > 0 ? totalErr / count : 36;
-  return Math.max(0, Math.min(100, Math.round(100 - (avgErr / 36) * 100)));
+  const avgErr = count > 0 ? totalErr / count : 0;
+
+  // P2③：分母改为相对误差——用响应的实际动态范围（2%-98% 分位峰-峰）归一化，
+  // 替代原硬编码 36dB。动态范围过小（<6dB）时钳到 6dB 防止除零放大。
+  const sorted = normVals.slice().sort((a, b) => a - b);
+  const p2 = sorted[Math.floor(sorted.length * 0.02)] ?? 0;
+  const p98 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.98))] ?? 0;
+  const denom = Math.max(6, p98 - p2);
+  return Math.max(0, Math.min(100, Math.round(100 - (avgErr / denom) * 100)));
 }
 
 /** 用拟合 bands 重建任意频点的预测响应（绘图用） */
