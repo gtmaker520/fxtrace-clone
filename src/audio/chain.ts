@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // audio/chain.ts — 迷你效果器链：单块(Waveshaper) → 箱头 EQ(BiquadFilter) → 箱体 IR(Convolver)
-// （提取自原 Guitar-X js/core/fx-client.ts + fx-registry 的克隆子集，简化为可独立运行的迷你链）
-// 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
+// 声明：本文件为作者本人（GTMaker）原创实现，非第三方开源代码。
 
 import { CURVE_BUILDERS, makeIdentityCurve } from './curves';
 import { getCabIR } from '../presets/cabinets';

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // engine/wh-nonlinear.ts — 非线性拟合器：从多电平扫频数据提取静态传递函数
 // 用三次样条拟合增益-输出曲线，生成 4097 点 WaveShaper 曲线
-// 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
+// 声明：本文件为作者本人（GTMaker）原创实现，非第三方开源代码。
 
 import { WHCaptureResult } from '../audio/wh-capture';
 

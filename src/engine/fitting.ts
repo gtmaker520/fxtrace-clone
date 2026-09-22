@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// engine/fitting.ts — EQ 拟合与匹配度（提取自原 clone-pedal.ts，纯逻辑可单测）
-// 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
+// 声明：本文件为作者本人（GTMaker）原创实现，非第三方开源代码。
 
 /** 7 段 EQ 拟合频点（Hz） */
 export const EQ_FREQS = [100, 200, 400, 800, 1600, 3200, 6400];

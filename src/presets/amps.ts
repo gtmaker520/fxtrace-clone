@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // presets/amps.ts — 箱头定义（中性风格名，无商标）
-// （提取自原 Guitar-X fx-registry 的 AMP_MODELS 子集；迷你链用 4 段 EQ 近似，
 //   此处保留各型号的 EQ 频点/默认参数供 chain.ts 使用。）
-// 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
+// 声明：本文件为作者本人（GTMaker）原创实现，非第三方开源代码。
 
 export interface AmpModel {
   key: string;

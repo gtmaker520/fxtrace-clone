@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // presets/cabinets.ts — 箱体 IR 程序生成（最小相位合成 + 基2 FFT）
-// （提取自原 Guitar-X js/dsp/cab-ir.ts，纯线性响应，无外部资源）
-// 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
+// 声明：本文件为作者本人（GTMaker）原创实现，非第三方开源代码。
 
 export const CAB_VARIANTS = [
   { id: 0, short: 'V30', name: '英式经典', cab: '4x12 闭背', note: '2-3kHz 临场鼻音峰' },

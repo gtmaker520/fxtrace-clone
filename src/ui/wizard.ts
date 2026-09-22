@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // ui/wizard.ts — 向导式克隆弹窗（设备克隆路径）
-// （提取自原 clone-pedal.ts 的 renderCloneModal，去 Electron，存储改为导出文件）
-// 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
+// 声明：本文件为作者本人（GTMaker）原创实现，非第三方开源代码。
 
 import type { CloneMode, CloneResult, SavedCloneTone } from '../engine/types';
 import { fitEqBands, computeMatchPct, computeDistortionMatchPct } from '../engine/fitting';

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// audio/curves.ts — WaveShaper 削波曲线子集（提取自原 Guitar-X js/dsp/curves.ts）
-// 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
+// 声明：本文件为作者本人（GTMaker）原创实现，非第三方开源代码。
 // 每种曲线对应真实电路的非对称/对称削波特性。只保留克隆选型会用到的 7 种。
 // 注：sr 参数保留以匹配统一构建器签名（CURVE_BUILDERS）。
 

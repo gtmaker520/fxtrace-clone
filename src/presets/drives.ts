@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // presets/drives.ts — 单块定义（中性风格名，无商标）
-// （提取自原 Guitar-X fx-registry 的克隆相关子集；曲线构建器在 audio/curves.ts。）
-// 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
+// 声明：本文件为作者本人（GTMaker）原创实现，非第三方开源代码。
 
 export interface DrivePreset {
   presetId: string;

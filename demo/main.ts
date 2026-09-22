@@ -2,7 +2,7 @@
 // demo/main.ts — 纯静态 demo（无 Electron）：
 //   路径 A 设备克隆 → ui/wizard.ts
 //   路径 B 音频文件克隆 → io/file-clone.ts + ui/charts.ts
-// 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
+// 声明：本文件为作者本人（GTMaker）原创实现，非第三方开源代码。
 
 import { openCloneWizard, setOnApply, showToast } from '../src/ui/wizard';
 import { setOnWHApply } from '../src/ui/wizard';

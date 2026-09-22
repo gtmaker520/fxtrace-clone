@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // engine/wh-linear.ts — 线性部分估计：从多电平扫频频响提取预/后滤波器
 // （低电平扫频 ≈ 线性区响应 → pre-filter；高低电平频响差 ≈ 非线性引起的音调变化 → post-filter 近似）
-// 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
+// 声明：本文件为作者本人（GTMaker）原创实现，非第三方开源代码。
 
 import type { BiquadCoeffs } from './wh-model';
 

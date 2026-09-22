@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // engine/wh-model.ts — Wiener-Hammerstein 模型核心（线性 → 静态非线性 → 线性）
 // Linear → Static Nonlinearity → Linear
-// 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
+// 声明：本文件为作者本人（GTMaker）原创实现，非第三方开源代码。
 
 /** WH 模型三段：Pre-filter (线性) -> Nonlinear (波形塑形) -> Post-filter (线性) */
 export interface WHModel {

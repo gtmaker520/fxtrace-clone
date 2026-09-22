@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // audio/wh-capture.ts — 多电平扫频采集器：W-H 模型的数据采集入口
 // 用 3 档输入电平重复扫频，采集每档下的增益-输出曲线（用于反解 WH 非线性）
-// 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
+// 声明：本文件为作者本人（GTMaker）原创实现，非第三方开源代码。
 
 import { getAudioContext, playAndCapturePeaks, renderSweepBuffer, captureBaseline } from './io';
 import { extractValidBins, calibrateResponse, SWEEP_GAIN } from '../engine/measurement';

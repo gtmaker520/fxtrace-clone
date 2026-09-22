@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // io/tone-file.ts — 音色 JSON 的导入/导出（文件即存储，替代 localStorage）
-// （提取自原 clone-pedal.ts 的 exportCloneTone/importCloneTone；新格式含原始频响 rawResponse）
-// 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
+// 声明：本文件为作者本人（GTMaker）原创实现，非第三方开源代码。
 
 import type { SavedCloneTone, CloneResult } from '../engine/types';
 

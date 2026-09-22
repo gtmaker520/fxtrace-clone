@@ -3,7 +3,7 @@
 // 职责：导入/应用音色后提供实时微调 UI（换箱体/失真度/箱头增益/单块电平）。
 // 归一化约定与 applyTone 一致：面板统一使用链路控制键（drive 0-1），预设键（dist 0-100）
 // 的换算只发生在 tone-file/applyTone 边界，本面板不接触预设键。
-// 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
+// 声明：本文件为作者本人（GTMaker）原创实现，非第三方开源代码。
 
 import type { CloneResult } from '../engine/types';
 import { CAB_VARIANTS } from '../presets/cabinets';

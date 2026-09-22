@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // audio/io.ts — WebAudio I/O 胶水：getUserMedia、扫频采集、基线校准
-// （提取自原 clone-pedal.ts 的声卡 I/O 路径）
-// 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
+// 声明：本文件为作者本人（GTMaker）原创实现，非第三方开源代码。
 
 import { SWEEP_DURATION, SWEEP_FFT, SWEEP_GAIN, FREQ_MIN, FREQ_MAX, extractValidBins, calibrateResponse } from '../engine/measurement';
 import type { SweepPeaks } from '../engine/measurement';

@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // io/file-clone.ts — 音频文件克隆：从录音/歌曲选区提取音色特征
-// （提取自原 clone-pedal.ts 的音频克隆路径：自写 FFT 频谱 + 三指标加权估计失真度）
-// 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
+// 声明：本文件为作者本人（GTMaker）原创实现，非第三方开源代码。
 
 import type { FreqProfile } from '../engine/types';
 import { fitEqBands, computeMatchPct, computeDistortionMatchPct } from '../engine/fitting';
