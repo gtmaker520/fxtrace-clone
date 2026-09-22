@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // engine/matching.ts — 选型引擎：单块/箱头/箱体规则打分匹配
-// （提取自原 clone-pedal.ts。原代码为中性风格名，无商标。P2 方向：多电平扫频反解替代查表。）
+// （提取自原 clone-pedal.ts。原代码为中性风格名，无商标。）
 // 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
 
 import type { FreqProfile, MatchedEffect, MatchedAmp, MatchedCab } from './types';

@@ -251,7 +251,7 @@ function renderWizard(): void {
         distortionType = classifyDistortion(thd);
 
         if (selectedMode === 'full') {
-          // P2②：full 模式下用 3 档多电平扫频反解 drive
+          // full 模式：3 档多电平扫频反解 drive
           bar.style.width = '62%';
           text.textContent = '多电平扫频反解 drive...';
           await new Promise(r => setTimeout(r, 100));
@@ -283,7 +283,7 @@ function renderWizard(): void {
       await new Promise(r => setTimeout(r, 100));
 
       const matchedDrive = (selectedMode !== 'eq') ? selectDriveEffect(thd, distortionType, driveAmount, freqProfile, topology) : null;
-      // P2②：反解成功时把 drive 写入选型参数（overdrive/bd2/klon 类为 drive/gain，硬削波类为 dist）
+      // 反解成功时把 drive 写入选型参数（overdrive/bd2/klon 类为 drive/gain，硬削波类为 dist）
       if (matchedDrive && driveAmount > 0) {
         const driveKey = ['drive', 'gain', 'dist'].find(k => k in matchedDrive.params);
         if (driveKey) matchedDrive.params[driveKey] = Math.round(driveAmount * 100) / 100;
@@ -291,7 +291,7 @@ function renderWizard(): void {
       const matchedAmp = (selectedMode !== 'eq') ? selectAmpModel(freqProfile, thd) : null;
       const matchedCab = (selectedMode === 'full') ? selectCabinet(freqProfile) : null;
 
-      // P2⑤：失真特征匹配度——候选侧用实测特征自评（类型/THD/动态与选型判据的一致性），
+      // 失真特征匹配度——候选侧用实测特征自评（类型/THD/动态与选型判据的一致性），
       // eq 模式无失真数据时记 100（不适用）
       const distortionMatchPct = selectedMode === 'eq' ? 100
         : computeDistortionMatchPct(
@@ -347,7 +347,7 @@ function renderWizard(): void {
     closeWizard();
   });
 
-  // P3：W-H 真克隆 —— 基于基线做多电平扫频，拟合 Linear→Static→Linear 模型并应用
+  // W-H 真克隆：基于基线做多电平扫频，拟合 Linear→Static→Linear 模型并应用
   overlay.querySelector('#cwWhBtn')!.addEventListener('click', async function (this: HTMLButtonElement) {
     if (!_baseline) { showToast('基线未校准，请先执行第 1 步'); return; }
     const btn = this as HTMLButtonElement;

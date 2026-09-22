@@ -83,7 +83,7 @@ export function parseToneFile(text: string, fallbackName = 'imported'): ParsedTo
     matchedAmp: data.matchedAmp || null,
     matchedCab: data.matchedCab || null,
   };
-  // v2 新字段：原始频响（旧格式没有 → legacy=true，P1 起可重算）
+  // v2 新字段：原始频响（旧格式没有 → legacy=true，可用新算法重算）
   if (data.rawResponse && Array.isArray(data.rawResponse.freqs) && Array.isArray(data.rawResponse.response)) {
     tone.rawResponse = { freqs: data.rawResponse.freqs, response: data.rawResponse.response };
     return { tone, legacy: false };

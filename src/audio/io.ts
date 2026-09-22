@@ -295,9 +295,8 @@ export async function captureDynamicLevels(ctx: AudioContext, frames = 40): Prom
   return levels;
 }
 
-// ── 实时监听（P3 用户体验补全）──
-// 应用克隆链路后，把麦克风输入实时接到 chain.input，使弹奏能立刻听到处理后的声音。
-// 之前版本只有"应用参数"，没有任何东西持续给链路送音频——弹吉他自然无声。
+// ── 实时监听 ──
+// 把麦克风输入实时接到效果链，弹奏时能直接听到处理后的声音。
 
 let _monitorStream: MediaStream | null = null;
 let _monitorSrc: MediaStreamAudioSourceNode | null = null;

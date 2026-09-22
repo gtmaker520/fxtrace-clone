@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// tests/wh-model.test.ts — P3 W-H 模型单测：合成已知模型数据验证拟合恢复
+// tests/wh-model.test.ts — W-H 模型单测：合成已知模型数据验证拟合恢复
 import { describe, it, expect } from 'vitest';
 import { solveDriveFromLevels } from '../src/engine/analysis';
 import { fitStaticNonlinearity, makeOddSymmetricSpline } from '../src/engine/wh-nonlinear';

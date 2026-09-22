@@ -1,15 +1,14 @@
 # Roadmap
 
-> 当前版本：v0.1.0（P0 提取完成）。
 > 排序原则：性价比优先——每项都标注它解决哪个"已知局限"（见 [algorithm.md](algorithm.md) 各节末尾）。
 
-## P1 重构（已完成）
+## 工程重构（已完成）
 
 - [x] engine/audio 进一步解耦：measurement 的 WebAudio 依赖下沉到 audio/io（engine 现为纯逻辑，node 环境可单测）
 - [x] UI 导入路径打通：导入音色文件 → applyTone 一键恢复（demo 路径 A）
 - [x] CI：workflow 已就绪（`.github/workflows/ci.yml`：tsc + vitest + build）；AtomGit Actions 需在仓库设置中启用
 
-## P2 算法增强（已完成）
+## 算法增强（已完成）
 
 ### ① 谐波阶次分解 ✅ —— 解决"THD 只是一个标量"
 
@@ -34,7 +33,7 @@ wizard full 模式已接入。详见 [algorithm.md §2.2](algorithm.md)。
 （输入调制范围 19.1dB / 输出实测范围），单测覆盖直通≈1 与 4:1 压缩≈4
 两个标定点。详见 [algorithm.md §3](algorithm.md)。
 
-## P3 "真克隆"路线（基础版已完成）
+## "真克隆"路线（基础版已完成）
 
 ### Wiener-Hammerstein 模型 ✅（基础版）
 

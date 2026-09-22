@@ -66,7 +66,7 @@ monitorBtn.addEventListener('click', async () => {
 
 document.getElementById('openWizardBtn')!.addEventListener('click', openCloneWizard);
 
-// P3：W-H 真克隆模型 → chain.loadWH 应用（pre-IIR → WaveShaper → post-IIR，立即可弹）
+// W-H 真克隆模型 → chain.loadWH 应用（pre-IIR → WaveShaper → post-IIR，立即可弹）
 setOnWHApply((model) => {
   void (async () => {
     const chain = await ensureChainAndMonitor();

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // engine/analysis.ts — THD 分类与频响特征剖面
-// （提取自原 clone-pedal.ts；谐波阶次分解为 P2 方向）
+// （提取自原 clone-pedal.ts；谐波阶次分解在原基础上扩展）
 // 声明：原实现为作者本人（GTMaker）自研项目 Guitar-X 中的自有代码，非第三方开源代码，本文件为作者自主改编。
 
 import type { FreqProfile } from './types';

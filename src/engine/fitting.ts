@@ -73,7 +73,7 @@ export function computeMatchPct(freqs: Float32Array, response: Float32Array, ban
   }
   const avgErr = count > 0 ? totalErr / count : 0;
 
-  // P2③：分母改为相对误差——用响应的实际动态范围（2%-98% 分位峰-峰）归一化，
+  // 分母用响应的实际动态范围（2%-98% 分位峰-峰）归一化，
   // 替代原硬编码 36dB。动态范围过小（<6dB）时钳到 6dB 防止除零放大。
   const sorted = normVals.slice().sort((a, b) => a - b);
   const p2 = sorted[Math.floor(sorted.length * 0.02)] ?? 0;
